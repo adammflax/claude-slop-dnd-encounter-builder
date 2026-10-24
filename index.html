@@ -39,17 +39,23 @@
 
   #groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 6px; padding: 6px; align-items: start; }
   .grp { background: #fff; border: 1px solid #c9bda0; border-radius: 6px; padding: 5px; }
-  .gh b { font-size: 14px; color: #8b1a1a; }
-  .gh .sm { display: block; }
-  .ab { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; margin: 3px 0; text-align: center; }
-  .ab div { background: #f6efdc; border-radius: 3px; padding: 1px 0; line-height: 1.15; }
-  .ab span { color: #777; font-size: 9px; display: block; }
-  .ab i { font-style: normal; font-weight: bold; font-size: 12px; }
-
-  .atk { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 3px 0; border-top: 1px dotted #ddd; }
-  .atk b { flex: 1 1 70px; min-width: 0; }
+  .gh { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+  .gh b { font-size: 15px; color: #8b1a1a; }
+  .gh .ac { font-weight: bold; }
+  .sv { display: flex; flex-wrap: wrap; gap: 0 8px; margin: 2px 0; font-size: 12px; color: #555; }
+  .sv .ps { color: #222; font-weight: bold; text-decoration: underline; }
+  .ma { margin: 3px 0; font-size: 12px; }
+  .atk { display: flex; gap: 4px; align-items: center; padding: 2px 0; border-top: 1px dotted #ddd; flex-wrap: wrap; }
+  .an { flex: 1 1 90px; min-width: 0; line-height: 1.15; }
+  .an b { display: block; }
+  .an .sm { display: block; font-size: 10px; }
   .atk .dm { font-weight: bold; }
-  .atk .sm { flex-basis: 100%; margin-top: -2px; }
+  .fch { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 2px; }
+  .fchip { padding: 4px 8px; border: 1px solid #c9bda0; background: #f6efdc; border-radius: 10px; font-size: 12px; cursor: pointer; }
+  .fchip.on { background: #8b1a1a; color: #fff; border-color: #8b1a1a; }
+  .fchip i { font-style: normal; font-size: 10px; opacity: .7; margin-left: 3px; }
+  .fdesc { margin: 3px 0; padding: 4px 6px; background: #fffbe8; border-left: 3px solid #d4a017; font-size: 12px; display: none; }
+  .fdesc.open { display: block; }
   .pq { flex-basis: 100%; display: flex; gap: 3px; flex-wrap: wrap; }
   .pq:empty { display: none; }
   .chip { min-width: 34px; text-align: center; padding: 5px 7px; background: #f6efdc; border: 1px solid #c9bda0; border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: bold; }
@@ -208,6 +214,11 @@ function parseAction(a) {
   return out;
 }
 
+function profBonus(cr) {
+  var n = +cr || 0;
+  return n < 5 ? 2 : n < 9 ? 3 : n < 13 ? 4 : n < 17 ? 5 : n < 21 ? 6 : n < 25 ? 7 : n < 29 ? 8 : 9;
+}
+
 function crLabel(cr) {
   var map = { 0.125: '1/8', 0.25: '1/4', 0.5: '1/2' };
   return map[cr] || String(cr);
@@ -254,6 +265,11 @@ function normalizeCreature(c) {
 
   return {
     key: c.key, name: c.name, saves: saves, init: c.initiative_bonus,
+    pb: c.proficiency_bonus || profBonus(c.challenge_rating),
+    skills: Object.keys(c.skill_bonuses || {}).map(function (k) {
+      var nm = k.replace(/_/g, ' ');
+      return { name: nm.charAt(0).toUpperCase() + nm.slice(1), bonus: c.skill_bonuses[k] };
+    }),
     hp: c.hit_points || 1, maxHp: c.hit_points || 1, hitDice: c.hit_dice || '',
     ac: c.armor_class || 10, speed: speed, abilities: abilities,
     cr: crLabel(c.challenge_rating),
@@ -356,12 +372,12 @@ function say(who, what, big, small) {
 
 /* ---------- loading ---------- */
 function getCreature(key) {
-  var cached = lsGet('dnd-cr2:' + key, null);
+  var cached = lsGet('dnd-cr3:' + key, null);
   if (cached) return Promise.resolve(cached);
   return fetch(OPEN5E + encodeURIComponent(key) + '/').then(function (r) {
     if (!r.ok) throw new Error('Open5e returned ' + r.status + ' for ' + key);
     return r.json();
-  }).then(function (j) { var c = normalizeCreature(j); lsSet('dnd-cr2:' + key, c); return c; });
+  }).then(function (j) { var c = normalizeCreature(j); lsSet('dnd-cr3:' + key, c); return c; });
 }
 
 function start(str, persistManual) {
@@ -441,26 +457,41 @@ function buildGroup(g) {
   var box = el('div', 'grp');
   if (g.err) { box.appendChild(el('b', '', g.key)); box.appendChild(el('div', 'sm', g.err)); return box; }
   if (!g.c) { box.appendChild(el('b', '', g.key)); box.appendChild(el('div', 'sm', 'Loading...')); return box; }
-  var c = g.c, t = T();
+  var c = g.c, t = T(), KEYS = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+  function mod(k) { return Math.floor(((c.abilities[k] || 10) - 10) / 2); }
+  function isProf(k) { return (c.saves[k] || 0) - mod(k) >= 1; }
 
   var gh = el('div', 'gh');
-  gh.appendChild(el('b', '', c.name + (g.n > 1 ? '  x' + g.n : '')));
-  gh.appendChild(el('span', 'sm', ['AC ' + c.ac, c.speed || '', 'CR ' + c.cr, 'HD ' + c.hitDice,
-    c.init !== undefined && c.init !== null ? 'Init ' + sgn(c.init) : ''].filter(Boolean).join(' | ')));
+  gh.appendChild(el('b', '', c.name + (g.n > 1 ? ' x' + g.n : '')));
+  gh.appendChild(el('span', 'ac', 'AC ' + c.ac + (c.speed ? ' · ' + c.speed : '')));
   box.appendChild(gh);
 
-  var ab = el('div', 'ab');
-  ['str', 'dex', 'con', 'int', 'wis', 'cha'].forEach(function (k) {
-    var cell = el('div');
-    cell.innerHTML = '<span>' + k.toUpperCase() + ' ' + c.abilities[k] + '</span><i title="saving throw">' + sgn((c.saves[k] || 0) + t.save) + '</i>';
-    ab.appendChild(cell);
+  var sv = el('div', 'sv');
+  if (t.save) sv.title = 'Tier bonus of ' + sgn(t.save) + ' applied to saves';
+  KEYS.forEach(function (k) { sv.appendChild(el('span', isProf(k) ? 'ps' : '', k.toUpperCase() + ' ' + sgn((c.saves[k] || 0) + t.save))); });
+  box.appendChild(sv);
+
+  var prof = ['Prof ' + sgn(c.pb || 2)];
+  var ps = KEYS.filter(isProf).map(function (k) { return k.toUpperCase(); });
+  if (ps.length) prof.push(ps.join(', ') + ' saves');
+  var sk = (c.skills || []).map(function (s) { return s.name + ' ' + sgn(s.bonus); });
+  if (sk.length) prof.push(sk.join(', '));
+  box.appendChild(el('div', 'sm', prof.join(' · ')));
+  var more = [c.senses, c.defenses].filter(Boolean);
+  if (more.length) box.appendChild(el('div', 'sm', more.join(' · ')));
+
+  var rest = [];
+  c.features.forEach(function (f) {
+    if (/^multiattack/i.test(f.name)) { var m = el('div', 'ma'); m.innerHTML = '<b>' + esc(f.name) + '</b> ' + esc(f.desc); box.appendChild(m); }
+    else rest.push(f);
   });
-  box.appendChild(ab);
-  if (c.defenses) box.appendChild(el('div', 'sm', c.defenses));
 
   c.attacks.forEach(function (a, ai) {
     var row = el('div', 'atk');
-    row.appendChild(el('b', '', a.name));
+    var an = el('div', 'an');
+    an.appendChild(el('b', '', a.name + '  ' + (a.kind === 'save' ? 'DC ' + (a.dc + t.dc) + ' ' + a.ability : sgn(a.bonus))));
+    an.appendChild(el('span', 'sm', [a.type, a.note].filter(Boolean).join(' · ')));
+    row.appendChild(an);
     var pq = el('div', 'pq');
     var bd = el('button', 'dm', a.dmg + (t.dmg !== 100 ? ' x' + t.dmg / 100 : ''));
     bd.onclick = function () { var r = rollDmg(a); say(c.name + ' ' + a.name, 'damage', r.total, r.text); };
@@ -472,15 +503,27 @@ function buildGroup(g) {
       paintPre(g, ai, pq);
     };
     row.appendChild(bp);
-    var info = [];
-    if (a.kind === 'save') info.push('DC ' + (a.dc + t.dc) + ' ' + a.ability + ' save');
-    else info.push('hit ' + sgn(a.bonus));
-    if (a.type) info.push(a.type);
-    if (a.note) info.push(a.note);
-    row.appendChild(el('span', 'sm', info.join(' | ')));
     row.appendChild(pq); paintPre(g, ai, pq);
     box.appendChild(row);
   });
+
+  if (rest.length) {
+    var TAG = { 'Bonus action': 'B', 'Reaction': 'R', 'Legendary action': 'L', 'Action': 'A' };
+    var fch = el('div', 'fch'), fd = el('div', 'fdesc'), openF = null;
+    rest.forEach(function (f) {
+      var chip = el('span', 'fchip');
+      chip.innerHTML = esc(f.name) + (TAG[f.kind] ? '<i>' + TAG[f.kind] + '</i>' : '');
+      chip.onclick = function () {
+        if (openF === chip) { fd.classList.remove('open'); chip.classList.remove('on'); openF = null; return; }
+        if (openF) openF.classList.remove('on');
+        openF = chip; chip.classList.add('on');
+        fd.innerHTML = '<b>' + esc(f.name) + '</b> <span class="sm">' + esc(f.kind || '') + '</span><br>' + bumpDC(f.desc);
+        fd.classList.add('open');
+      };
+      fch.appendChild(chip);
+    });
+    box.appendChild(fch); box.appendChild(fd);
+  }
 
   g.insts = [];
   for (var i = 0; i < g.n; i++) (function (i) {
@@ -509,18 +552,6 @@ function buildGroup(g) {
     g.insts.push({ row: row, fill: fill, hp: hpv, init: ib });
     paintInst(g, i);
   })(i);
-
-  if (c.features.length) {
-    var det = el('details', 'feat');
-    det.appendChild(el('summary', '', 'Traits and other actions (' + c.features.length + ')'));
-    c.features.forEach(function (f) {
-      var d2 = el('details');
-      var s = el('summary'); s.innerHTML = '<b>' + esc(f.name) + '</b> <span class="sm">' + esc(f.kind || '') + '</span>';
-      var p = el('div', 'sm'); p.style.color = '#222'; p.innerHTML = bumpDC(f.desc);
-      d2.appendChild(s); d2.appendChild(p); det.appendChild(d2);
-    });
-    box.appendChild(det);
-  }
   return box;
 }
 
@@ -559,13 +590,13 @@ $('btnResetHp').onclick = function () {
   groups.forEach(function (g) { g.insts.forEach(function (x, i) { paintInst(g, i); }); });
 };
 $('btnRefresh').onclick = function () {
-  groups.forEach(function (g) { lsDel('dnd-cr2:' + g.key); });
+  groups.forEach(function (g) { lsDel('dnd-cr3:' + g.key); });
   start($('encIn').value.trim() || '', false);
 };
 $('btnPaste').onclick = function () {
   try {
     var j = JSON.parse($('pasteJson').value), list = j.results || [j], n = 0;
-    list.forEach(function (x) { if (x && x.key) { lsSet('dnd-cr2:' + x.key, normalizeCreature(x)); n++; } });
+    list.forEach(function (x) { if (x && x.key) { lsSet('dnd-cr3:' + x.key, normalizeCreature(x)); n++; } });
     if (!n) throw new Error('no creature found in that text');
     $('pasteJson').value = ''; $('cfgMsg').textContent = 'Added ' + n + '. Reloading encounter...';
     start($('encIn').value.trim(), false);
