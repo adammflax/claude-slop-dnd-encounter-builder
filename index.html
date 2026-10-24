@@ -33,7 +33,7 @@
   #cfg.open { display: block; }
   #cfg h4 { margin: 8px 0 3px; font-size: 11px; text-transform: uppercase; color: #8b1a1a; }
   #cfg textarea, #cfg input { width: 100%; }
-  .tune { display: grid; grid-template-columns: 1fr repeat(4, 56px); gap: 3px; align-items: center; }
+  .tune { display: grid; grid-template-columns: 1fr repeat(5, 46px); gap: 3px; align-items: center; }
   .tune input { width: 100%; padding: 3px; }
   .tune .h { font-size: 10px; color: #777; }
 
@@ -71,7 +71,7 @@
   .l1 .hpv { margin-left: auto; font-weight: bold; font-size: 16px; }
   .l2 { display: flex; gap: 3px; }
   .l2 button { flex: 1 1 0; min-width: 0; padding: 2px 0; }
-  .l2 input { flex: 1.3 1 0; min-width: 0; width: 100%; min-height: 34px; text-align: center; padding: 2px; }
+  .l2 input { flex: 2.4 1 0; min-width: 0; width: 100%; min-height: 34px; text-align: center; padding: 2px; }
   .inst.down { opacity: .45; }
   .inst.down .nm { text-decoration: line-through; }
 
@@ -120,7 +120,7 @@
   <div class="row"><button id="btnLb">Make link</button><button id="btnLbCopy">Copy</button></div>
   <input id="lbOut" readonly placeholder="Your link appears here">
 
-  <h4>Tiers: HP and damage are % of normal; saves and DC are flat bonuses</h4>
+  <h4>Tiers: HP and damage are % of normal; saves, DC and AC are flat bonuses</h4>
   <div class="tune" id="tune"></div>
 
   <h4>If creatures fail to load: paste their JSON</h4>
@@ -288,10 +288,10 @@ function normalizeCreature(c) {
 'use strict';
 
 var TIER_DEFAULTS = [
-  { id: 'l1',  label: 'Level 1',     hp: 60,  dmg: 60,  save: -2, dc: -2 },
-  { id: 'low', label: 'Low level',   hp: 80,  dmg: 80,  save: -1, dc: -1 },
-  { id: 'std', label: 'Standard',    hp: 100, dmg: 100, save: 0,  dc: 0 },
-  { id: 'exp', label: 'Experienced', hp: 130, dmg: 125, save: 2,  dc: 2 }
+  { id: 'l1',  label: 'Level 1',     hp: 60,  dmg: 60,  save: -2, dc: -2, ac: -2 },
+  { id: 'low', label: 'Low level',   hp: 80,  dmg: 80,  save: -1, dc: -1, ac: -1 },
+  { id: 'std', label: 'Standard',    hp: 100, dmg: 100, save: 0,  dc: 0,  ac: 0 },
+  { id: 'exp', label: 'Experienced', hp: 130, dmg: 125, save: 2,  dc: 2,  ac: 2 }
 ];
 var SHORT = { l1: 'Lvl 1', low: 'Low', std: 'Std', exp: 'Exp' };
 
@@ -331,6 +331,10 @@ function urlEncounter() {
 /* ---------- state ---------- */
 var tiers = lsGet('dnd-tiers-v2', null);
 if (!tiers || tiers.length !== 4) tiers = JSON.parse(JSON.stringify(TIER_DEFAULTS));
+tiers.forEach(function (t) {
+  var def = TIER_DEFAULTS.filter(function (x) { return x.id === t.id; })[0] || {};
+  if (t.ac === undefined) t.ac = def.ac || 0;
+});
 var enc = [], groups = [], SKEY = '', st = { tier: 'std', taken: {}, init: {} };
 var logLines = [];
 
@@ -420,22 +424,32 @@ function renderTop() {
 
 function paintInst(g, i) {
   var it = g.insts[i], mx = maxHp(g), k = g.gi + '#' + i;
-  var taken = Math.min(st.taken[k] || 0, mx), hp = mx - taken, pct = hp / mx * 100;
+  var taken = Math.min(st.taken[k] || 0, mx), hp = mx - taken, pct = Math.min(100, hp / mx * 100), over = hp > mx;
   it.hp.textContent = hp + ' / ' + mx;
+  it.hp.style.color = over ? '#1f5fa8' : '';
   it.fill.style.width = pct + '%';
-  it.fill.style.background = pct > 50 ? '#2e8b3a' : pct > 25 ? '#d4a017' : '#b22222';
+  it.fill.style.background = over ? '#2a6fb0' : pct > 50 ? '#2e8b3a' : pct > 25 ? '#d4a017' : '#b22222';
   it.row.classList.toggle('down', hp === 0);
   var iv = st.init[k];
   it.init.textContent = iv === undefined ? 'Init' : 'Init ' + iv;
   it.init.classList.toggle('set', iv !== undefined);
 }
-function dmgInst(g, i, n) {
+/* net < 0 damages, net > 0 heals (may go above max for temp HP) */
+function applyDelta(g, i, net) {
   var k = g.gi + '#' + i, mx = maxHp(g);
-  st.taken[k] = Math.min(mx, (st.taken[k] || 0) + n); paintInst(g, i); saveSt();
+  st.taken[k] = Math.min(mx, (st.taken[k] || 0) - net);
+  paintInst(g, i); saveSt();
 }
-function healInst(g, i, n) {
-  var k = g.gi + '#' + i;
-  st.taken[k] = Math.max(0, (st.taken[k] || 0) - n); paintInst(g, i); saveSt();
+/* "-16" or "16" = damage, "+20" = heal, "-5+2" = net */
+function parseDelta(s) {
+  s = String(s || '').replace(/\s+/g, '');
+  if (!s || !/^[+-]?\d+([+-]\d+)*$/.test(s)) return null;
+  var terms = s.match(/[+-]?\d+/g), net = 0;
+  terms.forEach(function (t, idx) {
+    var n = parseInt(t.replace('+', ''), 10);
+    net += (idx === 0 && !/^[+-]/.test(t)) ? -Math.abs(n) : n;
+  });
+  return net;
 }
 function rollInit(g, i) {
   var c = g.c, b = (c.init !== undefined && c.init !== null) ? c.init : Math.floor(((c.abilities.dex || 10) - 10) / 2);
@@ -463,7 +477,7 @@ function buildGroup(g) {
 
   var gh = el('div', 'gh');
   gh.appendChild(el('b', '', c.name + (g.n > 1 ? ' x' + g.n : '')));
-  gh.appendChild(el('span', 'ac', 'AC ' + c.ac + (c.speed ? ' · ' + c.speed : '')));
+  gh.appendChild(el('span', 'ac', 'AC ' + (c.ac + t.ac) + (c.speed ? ' · ' + c.speed : '')));
   box.appendChild(gh);
 
   var sv = el('div', 'sv');
@@ -539,14 +553,19 @@ function buildGroup(g) {
     row.appendChild(l1);
     var l2 = el('div', 'l2');
     [10, 5, 1].forEach(function (n) {
-      var b = el('button', '', '-' + n); b.onclick = function () { dmgInst(g, i, n); }; l2.appendChild(b);
+      var b = el('button', '', '-' + n); b.onclick = function () { applyDelta(g, i, -n); }; l2.appendChild(b);
     });
-    var inp = el('input'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.placeholder = '#';
+    var inp = el('input'); inp.type = 'text'; inp.setAttribute('inputmode', 'text'); inp.placeholder = '-16 or +20';
+    inp.autocomplete = 'off'; inp.setAttribute('autocapitalize', 'off');
     l2.appendChild(inp);
-    var bdm = el('button', '', 'Dmg'); bdm.onclick = function () { var n = parseInt(inp.value, 10); if (n > 0) { dmgInst(g, i, n); inp.value = ''; } };
-    var bhl = el('button', '', 'Heal'); bhl.onclick = function () { var n = parseInt(inp.value, 10); if (n > 0) { healInst(g, i, n); inp.value = ''; } };
-    inp.onkeydown = function (e) { if (e.key === 'Enter') bdm.click(); };
-    l2.appendChild(bdm); l2.appendChild(bhl);
+    var ok = el('button', 'ok', 'OK');
+    ok.onclick = function () {
+      var net = parseDelta(inp.value);
+      if (net === null || net === 0) { inp.style.borderColor = '#b22222'; return; }
+      inp.style.borderColor = ''; applyDelta(g, i, net); inp.value = '';
+    };
+    inp.onkeydown = function (e) { if (e.key === 'Enter') ok.click(); };
+    l2.appendChild(ok);
     row.appendChild(l2);
     box.appendChild(row);
     g.insts.push({ row: row, fill: fill, hp: hpv, init: ib });
@@ -562,10 +581,10 @@ function render() {
 
 function renderTune() {
   var box = $('tune'); box.innerHTML = '';
-  ['', 'HP %', 'Dmg %', 'Save', 'DC'].forEach(function (h) { box.appendChild(el('div', 'h', h)); });
+  ['', 'HP %', 'Dmg %', 'Save', 'DC', 'AC'].forEach(function (h) { box.appendChild(el('div', 'h', h)); });
   tiers.forEach(function (t) {
     box.appendChild(el('div', '', t.label));
-    ['hp', 'dmg', 'save', 'dc'].forEach(function (f) {
+    ['hp', 'dmg', 'save', 'dc', 'ac'].forEach(function (f) {
       var i = el('input'); i.type = 'number'; i.value = t[f];
       i.oninput = function () { t[f] = +i.value || 0; saveTiers(); if (t.id === st.tier) render(); };
       box.appendChild(i);
