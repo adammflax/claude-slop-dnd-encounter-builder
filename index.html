@@ -58,20 +58,20 @@
   .fdesc.open { display: block; }
   .pq { flex-basis: 100%; display: flex; gap: 3px; flex-wrap: wrap; }
   .pq:empty { display: none; }
-  .chip { min-width: 34px; text-align: center; padding: 5px 7px; background: #f6efdc; border: 1px solid #c9bda0; border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: bold; }
-  .chip.used { opacity: .3; text-decoration: line-through; }
+  .chip { display: inline-flex; flex-direction: column; align-items: center; cursor: pointer; line-height: 1; }
+  .chip svg { display: block; }
+  .chip .cap { font-size: 10px; color: #555; margin-top: 1px; }
+  .chip.used { opacity: .25; filter: grayscale(1); }
+  .tg { display: inline-block; width: 9px; height: 9px; margin-right: 3px; border: 1px solid #888; vertical-align: -1px; }
 
-  .inst { position: relative; padding: 3px 4px; margin: 3px 0; border: 1px solid #c9bda0; border-radius: 5px; overflow: hidden; background: #fff; }
+  .inst { position: relative; display: flex; align-items: center; gap: 6px; padding: 3px 4px; margin: 3px 0; border: 1px solid #c9bda0; border-radius: 5px; overflow: hidden; background: #fff; }
   .inst .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; opacity: .22; z-index: 0; transition: width .12s; }
   .inst > *:not(.fill) { position: relative; z-index: 1; }
-  .l1 { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
-  .l1 .nm { font-weight: bold; }
-  .l1 .ib { min-height: 28px; padding: 0 7px; font-size: 12px; }
-  .l1 .ib.set { background: #8b1a1a; color: #fff; font-weight: bold; }
-  .l1 .hpv { margin-left: auto; font-weight: bold; font-size: 16px; }
-  .l2 { display: flex; gap: 3px; }
-  .l2 button { flex: 1 1 0; min-width: 0; padding: 2px 0; }
-  .l2 input { flex: 2.4 1 0; min-width: 0; width: 100%; min-height: 34px; text-align: center; padding: 2px; }
+  .inst .nm { font-weight: bold; }
+  .inst .ib { min-height: 30px; padding: 0 7px; font-size: 12px; white-space: nowrap; }
+  .inst .ib.set { background: #8b1a1a; color: #fff; font-weight: bold; }
+  .inst .hpv { font-weight: bold; font-size: 16px; white-space: nowrap; }
+  .inst input { flex: 1 1 56px; min-width: 56px; width: 100%; min-height: 34px; text-align: center; padding: 2px; }
   .inst.down { opacity: .45; }
   .inst.down .nm { text-decoration: line-through; }
 
@@ -184,20 +184,21 @@ function parseAction(a) {
     else base.push(d);
   }
   function dice(x) { return x.dice; }
+  function part(x) { return { dice: x.dice, type: x.type }; }
   function types(arr) { return uniq(arr.map(function (x) { return x.type; })).join(' + '); }
 
   if (hit && base.length) {
     var bonus = +hit[1];
     out.attacks.push({
       name: a.name, kind: 'attack', bonus: bonus,
-      dmg: base.map(dice).join('+'), type: types(base),
+      dmg: base.map(dice).join('+'), type: types(base), parts: base.map(part),
       note: cond.map(function (c) { return '+' + c.dice + ' ' + c.type + ' (conditional)'; }).join('; ')
     });
     if (alt.length) {
       var altAll = alt.slice(0, 1).concat(base.slice(1));
       out.attacks.push({
         name: a.name + ' (alt)', kind: 'attack', bonus: bonus,
-        dmg: altAll.map(dice).join('+'), type: types(altAll),
+        dmg: altAll.map(dice).join('+'), type: types(altAll), parts: altAll.map(part),
         note: 'alternate damage, see description'
       });
     }
@@ -205,7 +206,7 @@ function parseAction(a) {
     var dmgs = base.length ? base : cond;
     out.attacks.push({
       name: a.name, kind: 'save', dc: save.dc, ability: save.ability.slice(0, 3),
-      bonus: 0, dmg: dmgs.map(dice).join('+'), type: types(dmgs),
+      bonus: 0, dmg: dmgs.map(dice).join('+'), type: types(dmgs), parts: dmgs.map(part),
       note: /half (as much )?damage/i.test(desc) ? 'half damage on success' : ''
     });
   } else {
@@ -363,10 +364,32 @@ function rollExpr(expr) {
   }
   return { total: Math.max(0, total), text: parts.join(' ') };
 }
-function rollDmg(a) {
-  var r = rollExpr(a.dmg), pct = T().dmg;
-  return { total: Math.max(0, Math.round(r.total * pct / 100)), text: r.text + (pct !== 100 ? '  x' + (pct / 100) : '') };
+var TYPE_COLOR = { bludgeoning: '#d9c7b0', piercing: '#cfd8dc', slashing: '#b0bec5', acid: '#c5e1a5', fire: '#ffcc80', cold: '#b3e5fc',
+  lightning: '#fff59d', poison: '#ce93d8', necrotic: '#b39ddb', radiant: '#fff9c4', thunder: '#b2ebf2', force: '#f8bbd0', psychic: '#f48fb1' };
+function tcol(ty) { return TYPE_COLOR[ty] || '#e0e0e0'; }
+function attackParts(a) {
+  if (a.parts && a.parts.length) return a.parts;
+  return [{ dice: a.dmg, type: String(a.type || 'damage').split(' + ')[0] }];
 }
+function partTypes(a) {
+  var out = [];
+  attackParts(a).forEach(function (p) { if (out.indexOf(p.type) < 0) out.push(p.type); });
+  return out.slice(0, 4);
+}
+/* roll each damage type separately (max 4 shown), scaled by the tier */
+function rollParts(a) {
+  var pct = T().dmg, groups = [];
+  attackParts(a).forEach(function (p) {
+    var r = rollExpr(p.dice), amt = Math.max(0, Math.round(r.total * pct / 100));
+    var gp = groups.filter(function (x) { return x.type === p.type; })[0];
+    if (!gp) { gp = { type: p.type, amt: 0, text: [] }; groups.push(gp); }
+    gp.amt += amt; gp.text.push(r.text);
+  });
+  while (groups.length > 4) { var x = groups.pop(); groups[3].amt += x.amt; groups[3].type += '+' + x.type; groups[3].text.push(x.text.join(' ')); }
+  var total = groups.reduce(function (s, x) { return s + x.amt; }, 0);
+  return { parts: groups, total: total, text: groups.map(function (x) { return x.text.join(' '); }).join(' | ') + (pct !== 100 ? '  x' + (pct / 100) : '') };
+}
+function breakdown(r) { return r.parts.length > 1 ? r.parts.map(function (p) { return p.type + ' ' + p.amt; }).join(' + ') : (r.parts[0] ? r.parts[0].type : ''); }
 function say(who, what, big, small) {
   var line = '<b>' + esc(who) + '</b> ' + esc(what) + ' <span class="big">' + big + '</span> <span class="sm">' + small + '</span>';
   $('last').innerHTML = line;
@@ -376,12 +399,12 @@ function say(who, what, big, small) {
 
 /* ---------- loading ---------- */
 function getCreature(key) {
-  var cached = lsGet('dnd-cr3:' + key, null);
+  var cached = lsGet('dnd-cr4:' + key, null);
   if (cached) return Promise.resolve(cached);
   return fetch(OPEN5E + encodeURIComponent(key) + '/').then(function (r) {
     if (!r.ok) throw new Error('Open5e returned ' + r.status + ' for ' + key);
     return r.json();
-  }).then(function (j) { var c = normalizeCreature(j); lsSet('dnd-cr3:' + key, c); return c; });
+  }).then(function (j) { var c = normalizeCreature(j); lsSet('dnd-cr4:' + key, c); return c; });
 }
 
 function start(str, persistManual) {
@@ -458,10 +481,33 @@ function rollInit(g, i) {
   return { tot: tot, r: r, b: b };
 }
 
+var LAYOUT = {
+  1: { polys: ['0,0 44,0 44,44 0,44'], labels: [[22, 23]] },
+  2: { polys: ['0,0 44,0 0,44', '44,0 44,44 0,44'], labels: [[14, 14], [30, 30]] },
+  3: { polys: ['0,0 44,0 22,22 0,44', '44,0 44,44 22,22', '44,44 0,44 22,22'], labels: [[14, 14], [35, 22], [22, 35]] },
+  4: { polys: ['0,0 44,0 22,22', '44,0 44,44 22,22', '44,44 0,44 22,22', '0,44 0,0 22,22'], labels: [[22, 11], [34, 22], [22, 34], [10, 22]] }
+};
+function chipSvg(parts) {
+  var NS = 'http://www.w3.org/2000/svg', n = Math.min(parts.length, 4), L = LAYOUT[n];
+  var svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 44 44'); svg.setAttribute('width', '46'); svg.setAttribute('height', '46');
+  function mk(tag, attrs) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); return e; }
+  for (var i = 0; i < n; i++) {
+    svg.appendChild(mk('polygon', { points: L.polys[i], fill: tcol(parts[i].type), stroke: '#fff', 'stroke-width': 1.5 }));
+    var tx = mk('text', { x: L.labels[i][0], y: L.labels[i][1], 'text-anchor': 'middle', 'dominant-baseline': 'central',
+      'font-size': n === 1 ? 17 : n === 2 ? 13 : 11, 'font-weight': 'bold', fill: '#222' });
+    tx.textContent = parts[i].amt; svg.appendChild(tx);
+  }
+  svg.appendChild(mk('rect', { x: 0.75, y: 0.75, width: 42.5, height: 42.5, fill: 'none', stroke: '#9a8f73', 'stroke-width': 1.5 }));
+  return svg;
+}
 function paintPre(g, ai, box) {
   box.innerHTML = '';
   (g.pre[ai] || []).forEach(function (p) {
-    var chip = el('span', 'chip' + (p.used ? ' used' : ''), String(p.dmg));
+    var chip = el('div', 'chip' + (p.used ? ' used' : ''));
+    chip.title = breakdown(p.r) + (p.r.parts.length > 1 ? ' = ' + p.r.total : '');
+    chip.appendChild(chipSvg(p.r.parts));
+    if (p.r.parts.length > 1) chip.appendChild(el('span', 'cap', '= ' + p.r.total));
     chip.onclick = function () { p.used = !p.used; paintPre(g, ai, box); };
     box.appendChild(chip);
   });
@@ -504,16 +550,21 @@ function buildGroup(g) {
     var row = el('div', 'atk');
     var an = el('div', 'an');
     an.appendChild(el('b', '', a.name + '  ' + (a.kind === 'save' ? 'DC ' + (a.dc + t.dc) + ' ' + a.ability : sgn(a.bonus))));
-    an.appendChild(el('span', 'sm', [a.type, a.note].filter(Boolean).join(' · ')));
+    var lg = el('span', 'sm');
+    partTypes(a).forEach(function (ty) {
+      var sw = el('i', 'tg'); sw.style.background = tcol(ty); lg.appendChild(sw); lg.appendChild(document.createTextNode(ty + ' '));
+    });
+    if (a.note) lg.appendChild(document.createTextNode('\u00b7 ' + a.note));
+    an.appendChild(lg);
     row.appendChild(an);
     var pq = el('div', 'pq');
     var bd = el('button', 'dm', a.dmg + (t.dmg !== 100 ? ' x' + t.dmg / 100 : ''));
-    bd.onclick = function () { var r = rollDmg(a); say(c.name + ' ' + a.name, 'damage', r.total, r.text); };
+    bd.onclick = function () { var r = rollParts(a); say(c.name + ' ' + a.name, 'damage', r.total, (r.parts.length > 1 ? esc(breakdown(r)) + '<br>' : '') + esc(r.text)); };
     row.appendChild(bd);
-    var bp = el('button', '', 'Pre x6');
+    var bp = el('button', '', 'Pre x5');
     bp.onclick = function () {
       var q = g.pre[ai] = g.pre[ai] || [];
-      for (var i = 0; i < 6; i++) q.push({ dmg: rollDmg(a).total, used: false });
+      for (var i = 0; i < 5; i++) q.push({ r: rollParts(a), used: false });
       paintPre(g, ai, pq);
     };
     row.appendChild(bp);
@@ -543,30 +594,23 @@ function buildGroup(g) {
   for (var i = 0; i < g.n; i++) (function (i) {
     var row = el('div', 'inst');
     var fill = el('div', 'fill'); row.appendChild(fill);
-    var l1 = el('div', 'l1');
-    l1.appendChild(el('span', 'nm', g.n > 1 ? c.name + ' ' + (i + 1) : c.name));
+    if (g.n > 1) row.appendChild(el('span', 'nm', '#' + (i + 1)));
     var ib = el('button', 'ib', 'Init'); ib.onclick = function () {
       var r = rollInit(g, i); say(c.name + (g.n > 1 ? ' ' + (i + 1) : ''), 'initiative', r.tot, 'd20=' + r.r + sgn(r.b));
     };
-    l1.appendChild(ib);
-    var hpv = el('span', 'hpv'); l1.appendChild(hpv);
-    row.appendChild(l1);
-    var l2 = el('div', 'l2');
-    [10, 5, 1].forEach(function (n) {
-      var b = el('button', '', '-' + n); b.onclick = function () { applyDelta(g, i, -n); }; l2.appendChild(b);
-    });
-    var inp = el('input'); inp.type = 'text'; inp.setAttribute('inputmode', 'text'); inp.placeholder = '-16 or +20';
-    inp.autocomplete = 'off'; inp.setAttribute('autocapitalize', 'off');
-    l2.appendChild(inp);
-    var ok = el('button', 'ok', 'OK');
-    ok.onclick = function () {
+    row.appendChild(ib);
+    var hpv = el('span', 'hpv'); row.appendChild(hpv);
+    var inp = el('input'); inp.type = 'text'; inp.setAttribute('inputmode', 'text'); inp.setAttribute('enterkeyhint', 'done');
+    inp.placeholder = '-16 / +20'; inp.autocomplete = 'off'; inp.setAttribute('autocapitalize', 'off');
+    function commit() {
+      if (!inp.value.trim()) return;
       var net = parseDelta(inp.value);
       if (net === null || net === 0) { inp.style.borderColor = '#b22222'; return; }
       inp.style.borderColor = ''; applyDelta(g, i, net); inp.value = '';
-    };
-    inp.onkeydown = function (e) { if (e.key === 'Enter') ok.click(); };
-    l2.appendChild(ok);
-    row.appendChild(l2);
+    }
+    inp.onkeydown = function (e) { if (e.key === 'Enter') { commit(); inp.blur(); } };
+    inp.onchange = commit;
+    row.appendChild(inp);
     box.appendChild(row);
     g.insts.push({ row: row, fill: fill, hp: hpv, init: ib });
     paintInst(g, i);
@@ -609,13 +653,13 @@ $('btnResetHp').onclick = function () {
   groups.forEach(function (g) { g.insts.forEach(function (x, i) { paintInst(g, i); }); });
 };
 $('btnRefresh').onclick = function () {
-  groups.forEach(function (g) { lsDel('dnd-cr3:' + g.key); });
+  groups.forEach(function (g) { lsDel('dnd-cr4:' + g.key); });
   start($('encIn').value.trim() || '', false);
 };
 $('btnPaste').onclick = function () {
   try {
     var j = JSON.parse($('pasteJson').value), list = j.results || [j], n = 0;
-    list.forEach(function (x) { if (x && x.key) { lsSet('dnd-cr3:' + x.key, normalizeCreature(x)); n++; } });
+    list.forEach(function (x) { if (x && x.key) { lsSet('dnd-cr4:' + x.key, normalizeCreature(x)); n++; } });
     if (!n) throw new Error('no creature found in that text');
     $('pasteJson').value = ''; $('cfgMsg').textContent = 'Added ' + n + '. Reloading encounter...';
     start($('encIn').value.trim(), false);
