@@ -6,56 +6,66 @@
 <title>Encounter</title>
 <style>
   * { box-sizing: border-box; }
-  body { margin: 0; font: 12px/1.25 system-ui, Arial, sans-serif; background: #fdf6e3; color: #222; padding-bottom: 70px; }
-  button { font: inherit; min-height: 32px; padding: 3px 8px; border: 1px solid #8b1a1a; background: #fff; color: #8b1a1a; border-radius: 4px; cursor: pointer; touch-action: manipulation; }
+  body { margin: 0; font: 12px/1.25 system-ui, Arial, sans-serif; background: #fdf6e3; color: #222; padding-bottom: 56px; -webkit-text-size-adjust: 100%; }
+  button { font: inherit; font-size: 13px; min-height: 34px; padding: 2px 8px; border: 1px solid #8b1a1a; background: #fff; color: #8b1a1a; border-radius: 4px; cursor: pointer; touch-action: manipulation; }
   button:active { background: #8b1a1a; color: #fff; }
-  input, textarea { font: inherit; border: 1px solid #c9bda0; border-radius: 4px; padding: 4px; background: #fff; }
+  input, textarea { font: inherit; font-size: 16px; border: 1px solid #c9bda0; border-radius: 4px; padding: 4px; background: #fff; }
   .sm { font-size: 11px; color: #777; }
-  .row { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .row { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; margin: 3px 0; }
 
-  #top { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 8px; background: #8b1a1a; color: #fff; }
-  #top b { font-size: 14px; margin-right: 4px; }
-  #top .seg { display: flex; }
-  #top .seg button { border-radius: 0; border-color: #fff; background: transparent; color: #fff; }
-  #top .seg button:first-child { border-radius: 4px 0 0 4px; }
-  #top .seg button:last-child { border-radius: 0 4px 4px 0; }
-  #top .seg button.on { background: #fff; color: #8b1a1a; font-weight: bold; }
-  #top .gap { flex: 1; }
-  #top #btnCfg { border-color: #fff; background: transparent; color: #fff; }
+  #top { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 5px 6px; background: #8b1a1a; color: #fff; }
+  #top b { font-size: 14px; margin-right: auto; }
+  #top button { border-color: #fff; background: transparent; color: #fff; min-height: 32px; }
+  #top button:active { background: #fff; color: #8b1a1a; }
+  #tiers { display: flex; flex: 1 1 auto; }
+  #tiers button { flex: 1; border-radius: 0; margin-left: -1px; white-space: nowrap; }
+  #tiers button:first-child { border-radius: 4px 0 0 4px; margin-left: 0; }
+  #tiers button:last-child { border-radius: 0 4px 4px 0; }
+  #tiers button.on { background: #fff; color: #8b1a1a; font-weight: bold; }
+  #tiers .s { display: none; }
+  @media (max-width: 640px) {
+    #tiers { order: 3; flex: 1 1 100%; }
+    #tiers .f { display: none; }
+    #tiers .s { display: inline; }
+  }
 
-  #cfg { margin: 6px 8px; background: #fff; border: 1px solid #c9bda0; border-radius: 6px; padding: 6px; display: none; }
+  #cfg { margin: 6px; background: #fff; border: 1px solid #c9bda0; border-radius: 6px; padding: 6px; display: none; }
   #cfg.open { display: block; }
   #cfg h4 { margin: 8px 0 3px; font-size: 11px; text-transform: uppercase; color: #8b1a1a; }
-  #cfg textarea { width: 100%; }
-  .tune { display: grid; grid-template-columns: 110px repeat(4, 70px); gap: 4px; align-items: center; }
-  .tune input { width: 100%; }
+  #cfg textarea, #cfg input { width: 100%; }
+  .tune { display: grid; grid-template-columns: 1fr repeat(4, 56px); gap: 3px; align-items: center; }
+  .tune input { width: 100%; padding: 3px; }
   .tune .h { font-size: 10px; color: #777; }
 
-  #groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 8px; padding: 8px; align-items: start; }
-  .grp { background: #fff; border: 1px solid #c9bda0; border-radius: 6px; padding: 6px; }
-  .gh { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; border-bottom: 1px solid #8b1a1a55; padding-bottom: 3px; margin-bottom: 4px; }
-  .gh b { font-size: 15px; color: #8b1a1a; }
+  #groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 6px; padding: 6px; align-items: start; }
+  .grp { background: #fff; border: 1px solid #c9bda0; border-radius: 6px; padding: 5px; }
+  .gh b { font-size: 14px; color: #8b1a1a; }
+  .gh .sm { display: block; }
   .ab { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; margin: 3px 0; text-align: center; }
-  .ab div { background: #f6efdc; border-radius: 3px; padding: 2px 0; }
-  .ab i { display: block; font-style: normal; font-weight: bold; }
-  .ab span { color: #777; font-size: 10px; }
+  .ab div { background: #f6efdc; border-radius: 3px; padding: 1px 0; line-height: 1.15; }
+  .ab span { color: #777; font-size: 9px; display: block; }
+  .ab i { font-style: normal; font-weight: bold; font-size: 12px; }
 
   .atk { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 3px 0; border-top: 1px dotted #ddd; }
-  .atk b { min-width: 70px; }
+  .atk b { flex: 1 1 70px; min-width: 0; }
+  .atk .dm { font-weight: bold; }
   .atk .sm { flex-basis: 100%; margin-top: -2px; }
-  .atk button.dm { font-weight: bold; }
   .pq { flex-basis: 100%; display: flex; gap: 3px; flex-wrap: wrap; }
-  .chip { padding: 3px 7px; background: #f6efdc; border: 1px solid #c9bda0; border-radius: 10px; cursor: pointer; font-size: 11px; }
+  .pq:empty { display: none; }
+  .chip { min-width: 34px; text-align: center; padding: 5px 7px; background: #f6efdc; border: 1px solid #c9bda0; border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: bold; }
   .chip.used { opacity: .3; text-decoration: line-through; }
-  .chip.crit { background: #fff1b8; border-color: #d4a017; }
 
-  .insts { margin-top: 4px; }
-  .inst { position: relative; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; padding: 3px 4px; margin: 3px 0; border: 1px solid #c9bda0; border-radius: 5px; overflow: hidden; background: #fff; }
+  .inst { position: relative; padding: 3px 4px; margin: 3px 0; border: 1px solid #c9bda0; border-radius: 5px; overflow: hidden; background: #fff; }
   .inst .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; opacity: .22; z-index: 0; transition: width .12s; }
   .inst > *:not(.fill) { position: relative; z-index: 1; }
-  .inst .nm { font-weight: bold; min-width: 62px; }
-  .inst .hpv { font-weight: bold; font-size: 15px; min-width: 62px; text-align: center; }
-  .inst input { width: 54px; min-height: 32px; text-align: center; }
+  .l1 { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+  .l1 .nm { font-weight: bold; }
+  .l1 .ib { min-height: 28px; padding: 0 7px; font-size: 12px; }
+  .l1 .ib.set { background: #8b1a1a; color: #fff; font-weight: bold; }
+  .l1 .hpv { margin-left: auto; font-weight: bold; font-size: 16px; }
+  .l2 { display: flex; gap: 3px; }
+  .l2 button { flex: 1 1 0; min-width: 0; padding: 2px 0; }
+  .l2 input { flex: 1.3 1 0; min-width: 0; width: 100%; min-height: 34px; text-align: center; padding: 2px; }
   .inst.down { opacity: .45; }
   .inst.down .nm { text-decoration: line-through; }
 
@@ -65,8 +75,8 @@
   .dcb { background: #ffe8a3; border-radius: 2px; padding: 0 2px; }
 
   #rollbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: #222; color: #fff; }
-  #last { padding: 8px 10px; font-size: 14px; min-height: 40px; cursor: pointer; }
-  #last .big { font-size: 22px; font-weight: bold; color: #ffd75e; margin: 0 4px; }
+  #last { padding: 6px 10px; font-size: 13px; min-height: 40px; cursor: pointer; }
+  #last .big { font-size: 20px; font-weight: bold; color: #ffd75e; margin: 0 3px; }
   #last .sm { color: #bbb; }
   #logPanel { display: none; max-height: 40vh; overflow-y: auto; padding: 4px 10px; border-top: 1px solid #444; }
   #logPanel.open { display: block; }
@@ -87,30 +97,27 @@
 
 <div id="top">
   <b id="encName">Encounter</b>
-  <div class="seg" id="tiers"></div>
-  <div class="seg" id="advSeg">
-    <button data-adv="dis">Dis</button><button data-adv="n" class="on">Norm</button><button data-adv="adv">Adv</button>
-  </div>
-  <span class="gap"></span>
+  <button id="btnInitAll">Roll init</button>
   <button id="btnCfg">Setup</button>
+  <div id="tiers"></div>
 </div>
 
 <div id="cfg">
   <h4>Encounter</h4>
   <textarea id="encIn" rows="2" placeholder="3xhttps%3A%2F%2Fapi.open5e.com%2Fv2%2Fcreatures%2Fsrd-2024_mimic%2F&1xhttps%3A%2F%2Fopen5e.com%2Fmonsters%2Fsrd-2024_adult-black-dragon"></textarea>
-  <div class="row"><button id="btnLoad">Load encounter</button><button id="btnResetHp">Reset all HP</button><button id="btnRefresh">Refresh creature data</button></div>
+  <div class="row"><button id="btnLoad">Load</button><button id="btnResetHp">Reset HP and init</button><button id="btnRefresh">Refresh data</button></div>
   <div class="sm" id="cfgMsg"></div>
 
   <h4>Link builder (for your Google Site)</h4>
-  <div class="sm">One creature per line, e.g. "3 https://open5e.com/monsters/srd-2024_mimic". Opens this page with that encounter loaded.</div>
+  <div class="sm">One creature per line, e.g. "3 https://open5e.com/monsters/srd-2024_mimic".</div>
   <textarea id="lbIn" rows="3" placeholder="3 https://open5e.com/monsters/srd-2024_mimic&#10;1 https://open5e.com/monsters/srd-2024_adult-black-dragon"></textarea>
   <div class="row"><button id="btnLb">Make link</button><button id="btnLbCopy">Copy</button></div>
-  <input id="lbOut" readonly style="width:100%" placeholder="Your link appears here">
+  <input id="lbOut" readonly placeholder="Your link appears here">
 
-  <h4>Difficulty tiers (HP and damage are % of normal; saves and DC are flat bonuses)</h4>
+  <h4>Tiers: HP and damage are % of normal; saves and DC are flat bonuses</h4>
   <div class="tune" id="tune"></div>
 
-  <h4>If creatures fail to load: paste their JSON here</h4>
+  <h4>If creatures fail to load: paste their JSON</h4>
   <div class="sm">Open the creature's api.open5e.com address in a browser tab, copy all the text, paste it below.</div>
   <textarea id="pasteJson" rows="2"></textarea>
   <div class="row"><button id="btnPaste">Add creature data</button></div>
@@ -119,7 +126,7 @@
 <div id="groups"></div>
 
 <div id="rollbar">
-  <div id="last">Tap a Hit or Dmg button to roll. Tap here for the roll log.</div>
+  <div id="last">Tap a damage button to roll. Tap here for the log.</div>
   <div id="logPanel"></div>
 </div>
 
@@ -270,6 +277,7 @@ var TIER_DEFAULTS = [
   { id: 'std', label: 'Standard',    hp: 100, dmg: 100, save: 0,  dc: 0 },
   { id: 'exp', label: 'Experienced', hp: 130, dmg: 125, save: 2,  dc: 2 }
 ];
+var SHORT = { l1: 'Lvl 1', low: 'Low', std: 'Std', exp: 'Exp' };
 
 function $(id) { return document.getElementById(id); }
 function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -307,13 +315,12 @@ function urlEncounter() {
 /* ---------- state ---------- */
 var tiers = lsGet('dnd-tiers-v2', null);
 if (!tiers || tiers.length !== 4) tiers = JSON.parse(JSON.stringify(TIER_DEFAULTS));
-var enc = [], groups = [], SKEY = '', st = { tier: 'std', adv: 'n', taken: {} };
+var enc = [], groups = [], SKEY = '', st = { tier: 'std', taken: {}, init: {} };
 var logLines = [];
 
 function T() { return tiers.filter(function (t) { return t.id === st.tier; })[0] || tiers[2]; }
 function saveSt() { if (SKEY) lsSet(SKEY, st); }
 function saveTiers() { lsSet('dnd-tiers-v2', tiers); }
-
 function maxHp(g) { return Math.max(1, Math.round(g.c.maxHp * T().hp / 100)); }
 function bumpDC(text) {
   var b = T().dc;
@@ -323,12 +330,12 @@ function bumpDC(text) {
 
 /* ---------- dice ---------- */
 function d(n) { return 1 + Math.floor(Math.random() * n); }
-function rollExpr(expr, crit) {
+function rollExpr(expr) {
   var re = /([+-]?)\s*(?:(\d*)d(\d+)|(\d+))/gi, m, total = 0, parts = [];
   while ((m = re.exec(expr))) {
     var sign = m[1] === '-' ? -1 : 1;
     if (m[3]) {
-      var n = (m[2] ? +m[2] : 1) * (crit ? 2 : 1), s = +m[3], r = [], sum = 0;
+      var n = (m[2] ? +m[2] : 1), s = +m[3], r = [], sum = 0;
       for (var i = 0; i < n; i++) { var v = d(s); r.push(v); sum += v; }
       total += sign * sum;
       parts.push((sign < 0 ? '-' : '') + n + 'd' + s + '[' + r.join(',') + ']');
@@ -336,26 +343,15 @@ function rollExpr(expr, crit) {
   }
   return { total: Math.max(0, total), text: parts.join(' ') };
 }
-function rollD20() {
-  var a = d(20), b = d(20);
-  if (st.adv === 'adv') return { v: Math.max(a, b), txt: '(' + a + ',' + b + ' adv)' };
-  if (st.adv === 'dis') return { v: Math.min(a, b), txt: '(' + a + ',' + b + ' dis)' };
-  return { v: a, txt: '' };
-}
-function rollDmg(a, crit) {
-  var r = rollExpr(a.dmg, crit), pct = T().dmg;
-  var tot = Math.max(0, Math.round(r.total * pct / 100));
-  return { total: tot, text: r.text + (pct !== 100 ? '  x' + (pct / 100) : '') };
+function rollDmg(a) {
+  var r = rollExpr(a.dmg), pct = T().dmg;
+  return { total: Math.max(0, Math.round(r.total * pct / 100)), text: r.text + (pct !== 100 ? '  x' + (pct / 100) : '') };
 }
 function say(who, what, big, small) {
   var line = '<b>' + esc(who) + '</b> ' + esc(what) + ' <span class="big">' + big + '</span> <span class="sm">' + small + '</span>';
   $('last').innerHTML = line;
   logLines.unshift(line); if (logLines.length > 40) logLines.pop();
   $('logPanel').innerHTML = logLines.map(function (l) { return '<div>' + l + '</div>'; }).join('');
-}
-function hitRoll(c, a) {
-  var r = rollD20(), tot = r.v + (+a.bonus || 0);
-  return { r: r, tot: tot, crit: r.v === 20, fumble: r.v === 1 };
 }
 
 /* ---------- loading ---------- */
@@ -372,10 +368,10 @@ function start(str, persistManual) {
   enc = parseEncounter(str);
   $('encIn').value = str || '';
   if (persistManual) lsSet('dnd-enc-manual', str);
-  SKEY = 'dnd-enc-st2:' + enc.map(function (e) { return e.key + 'x' + e.n; }).join('&');
-  var saved = lsGet(SKEY, null);
-  st = saved || { tier: 'std', adv: 'n', taken: {} };
+  SKEY = 'dnd-enc-st3:' + enc.map(function (e) { return e.key + 'x' + e.n; }).join('&');
+  st = lsGet(SKEY, null) || { tier: 'std', taken: {}, init: {} };
   if (!st.taken) st.taken = {};
+  if (!st.init) st.init = {};
   groups = enc.map(function (e, gi) { return { gi: gi, key: e.key, n: e.n, c: null, err: null, insts: [], pre: {} }; });
   renderTop(); render();
   if (!enc.length) { $('cfgMsg').textContent = 'No creatures found in that text.'; $('cfg').classList.add('open'); return; }
@@ -395,16 +391,14 @@ function renderTop() {
   $('encName').textContent = (typeof ENCOUNTER_NAME === 'string' && ENCOUNTER_NAME) || 'Encounter';
   var box = $('tiers'); box.innerHTML = '';
   tiers.forEach(function (t) {
-    var b = el('button', t.id === st.tier ? 'on' : '', t.label);
+    var b = el('button', t.id === st.tier ? 'on' : '');
+    b.innerHTML = '<span class="f">' + esc(t.label) + '</span><span class="s">' + esc(SHORT[t.id] || t.label) + '</span>';
     b.onclick = function () {
       st.tier = t.id; saveSt();
       groups.forEach(function (g) { g.pre = {}; });
       renderTop(); render();
     };
     box.appendChild(b);
-  });
-  document.querySelectorAll('[data-adv]').forEach(function (b) {
-    b.classList.toggle('on', b.getAttribute('data-adv') === st.adv);
   });
 }
 
@@ -415,6 +409,9 @@ function paintInst(g, i) {
   it.fill.style.width = pct + '%';
   it.fill.style.background = pct > 50 ? '#2e8b3a' : pct > 25 ? '#d4a017' : '#b22222';
   it.row.classList.toggle('down', hp === 0);
+  var iv = st.init[k];
+  it.init.textContent = iv === undefined ? 'Init' : 'Init ' + iv;
+  it.init.classList.toggle('set', iv !== undefined);
 }
 function dmgInst(g, i, n) {
   var k = g.gi + '#' + i, mx = maxHp(g);
@@ -424,12 +421,17 @@ function healInst(g, i, n) {
   var k = g.gi + '#' + i;
   st.taken[k] = Math.max(0, (st.taken[k] || 0) - n); paintInst(g, i); saveSt();
 }
+function rollInit(g, i) {
+  var c = g.c, b = (c.init !== undefined && c.init !== null) ? c.init : Math.floor(((c.abilities.dex || 10) - 10) / 2);
+  var r = d(20), tot = r + b;
+  st.init[g.gi + '#' + i] = tot; paintInst(g, i); saveSt();
+  return { tot: tot, r: r, b: b };
+}
 
 function paintPre(g, ai, box) {
   box.innerHTML = '';
   (g.pre[ai] || []).forEach(function (p) {
-    var chip = el('span', 'chip' + (p.used ? ' used' : '') + (p.crit ? ' crit' : ''),
-      p.hit + (p.crit ? ' CRIT' : p.fumble ? ' (1)' : '') + ' > ' + p.dmg);
+    var chip = el('span', 'chip' + (p.used ? ' used' : ''), String(p.dmg));
     chip.onclick = function () { p.used = !p.used; paintPre(g, ai, box); };
     box.appendChild(chip);
   });
@@ -442,10 +444,9 @@ function buildGroup(g) {
   var c = g.c, t = T();
 
   var gh = el('div', 'gh');
-  gh.appendChild(el('b', '', c.name));
-  gh.appendChild(el('span', '', 'x' + g.n));
+  gh.appendChild(el('b', '', c.name + (g.n > 1 ? '  x' + g.n : '')));
   gh.appendChild(el('span', 'sm', ['AC ' + c.ac, c.speed || '', 'CR ' + c.cr, 'HD ' + c.hitDice,
-    c.init !== undefined && c.init !== null ? 'Init ' + sgn(c.init) : '', [c.size, c.type].filter(Boolean).join(' ')].filter(Boolean).join(' | ')));
+    c.init !== undefined && c.init !== null ? 'Init ' + sgn(c.init) : ''].filter(Boolean).join(' | ')));
   box.appendChild(gh);
 
   var ab = el('div', 'ab');
@@ -455,68 +456,59 @@ function buildGroup(g) {
     ab.appendChild(cell);
   });
   box.appendChild(ab);
-  if (c.defenses || c.senses) box.appendChild(el('div', 'sm', [c.defenses, c.senses].filter(Boolean).join(' | ')));
+  if (c.defenses) box.appendChild(el('div', 'sm', c.defenses));
 
   c.attacks.forEach(function (a, ai) {
     var row = el('div', 'atk');
     row.appendChild(el('b', '', a.name));
     var pq = el('div', 'pq');
-    if (a.kind !== 'save') {
-      var bh = el('button', '', 'Hit ' + sgn(a.bonus));
-      bh.onclick = function () {
-        var h = hitRoll(c, a);
-        say(c.name + ' ' + a.name, 'hit', h.tot + (h.crit ? ' CRIT' : h.fumble ? ' (nat 1)' : ''), 'd20=' + h.r.v + sgn(+a.bonus || 0) + ' ' + h.r.txt);
-      };
-      row.appendChild(bh);
-    }
     var bd = el('button', 'dm', a.dmg + (t.dmg !== 100 ? ' x' + t.dmg / 100 : ''));
-    bd.onclick = function () { var r = rollDmg(a, false); say(c.name + ' ' + a.name, 'damage', r.total, r.text); };
+    bd.onclick = function () { var r = rollDmg(a); say(c.name + ' ' + a.name, 'damage', r.total, r.text); };
     row.appendChild(bd);
-    if (a.kind !== 'save') {
-      var bc = el('button', '', 'Crit');
-      bc.onclick = function () { var r = rollDmg(a, true); say(c.name + ' ' + a.name, 'CRIT damage', r.total, r.text); };
-      row.appendChild(bc);
-      var bp = el('button', '', 'Pre x6');
-      bp.onclick = function () {
-        var q = g.pre[ai] = g.pre[ai] || [];
-        for (var i = 0; i < 6; i++) {
-          var h = hitRoll(c, a), r = rollDmg(a, h.crit);
-          q.push({ hit: h.tot, crit: h.crit, fumble: h.fumble, dmg: r.total, used: false });
-        }
-        paintPre(g, ai, pq);
-      };
-      row.appendChild(bp);
-    }
+    var bp = el('button', '', 'Pre x6');
+    bp.onclick = function () {
+      var q = g.pre[ai] = g.pre[ai] || [];
+      for (var i = 0; i < 6; i++) q.push({ dmg: rollDmg(a).total, used: false });
+      paintPre(g, ai, pq);
+    };
+    row.appendChild(bp);
     var info = [];
     if (a.kind === 'save') info.push('DC ' + (a.dc + t.dc) + ' ' + a.ability + ' save');
+    else info.push('hit ' + sgn(a.bonus));
     if (a.type) info.push(a.type);
     if (a.note) info.push(a.note);
-    if (info.length) row.appendChild(el('span', 'sm', info.join(' | ')));
+    row.appendChild(el('span', 'sm', info.join(' | ')));
     row.appendChild(pq); paintPre(g, ai, pq);
     box.appendChild(row);
   });
 
-  var insts = el('div', 'insts');
   g.insts = [];
   for (var i = 0; i < g.n; i++) (function (i) {
     var row = el('div', 'inst');
     var fill = el('div', 'fill'); row.appendChild(fill);
-    row.appendChild(el('span', 'nm', g.n > 1 ? c.name + ' ' + (i + 1) : c.name));
-    var hpv = el('span', 'hpv'); row.appendChild(hpv);
+    var l1 = el('div', 'l1');
+    l1.appendChild(el('span', 'nm', g.n > 1 ? c.name + ' ' + (i + 1) : c.name));
+    var ib = el('button', 'ib', 'Init'); ib.onclick = function () {
+      var r = rollInit(g, i); say(c.name + (g.n > 1 ? ' ' + (i + 1) : ''), 'initiative', r.tot, 'd20=' + r.r + sgn(r.b));
+    };
+    l1.appendChild(ib);
+    var hpv = el('span', 'hpv'); l1.appendChild(hpv);
+    row.appendChild(l1);
+    var l2 = el('div', 'l2');
     [10, 5, 1].forEach(function (n) {
-      var b = el('button', '', '-' + n); b.onclick = function () { dmgInst(g, i, n); }; row.appendChild(b);
+      var b = el('button', '', '-' + n); b.onclick = function () { dmgInst(g, i, n); }; l2.appendChild(b);
     });
     var inp = el('input'); inp.type = 'number'; inp.inputMode = 'numeric'; inp.placeholder = '#';
-    row.appendChild(inp);
-    var bd = el('button', '', 'Dmg'); bd.onclick = function () { var n = parseInt(inp.value, 10); if (n > 0) { dmgInst(g, i, n); inp.value = ''; } };
-    var bh = el('button', '', 'Heal'); bh.onclick = function () { var n = parseInt(inp.value, 10); if (n > 0) { healInst(g, i, n); inp.value = ''; } };
-    inp.onkeydown = function (e) { if (e.key === 'Enter') bd.click(); };
-    row.appendChild(bd); row.appendChild(bh);
-    insts.appendChild(row);
-    g.insts.push({ row: row, fill: fill, hp: hpv });
+    l2.appendChild(inp);
+    var bdm = el('button', '', 'Dmg'); bdm.onclick = function () { var n = parseInt(inp.value, 10); if (n > 0) { dmgInst(g, i, n); inp.value = ''; } };
+    var bhl = el('button', '', 'Heal'); bhl.onclick = function () { var n = parseInt(inp.value, 10); if (n > 0) { healInst(g, i, n); inp.value = ''; } };
+    inp.onkeydown = function (e) { if (e.key === 'Enter') bdm.click(); };
+    l2.appendChild(bdm); l2.appendChild(bhl);
+    row.appendChild(l2);
+    box.appendChild(row);
+    g.insts.push({ row: row, fill: fill, hp: hpv, init: ib });
     paintInst(g, i);
   })(i);
-  box.appendChild(insts);
 
   if (c.features.length) {
     var det = el('details', 'feat');
@@ -539,7 +531,7 @@ function render() {
 
 function renderTune() {
   var box = $('tune'); box.innerHTML = '';
-  ['', 'HP %', 'Damage %', 'Saves +/-', 'DC +/-'].forEach(function (h) { box.appendChild(el('div', 'h', h)); });
+  ['', 'HP %', 'Dmg %', 'Save', 'DC'].forEach(function (h) { box.appendChild(el('div', 'h', h)); });
   tiers.forEach(function (t) {
     box.appendChild(el('div', '', t.label));
     ['hp', 'dmg', 'save', 'dc'].forEach(function (f) {
@@ -553,11 +545,19 @@ function renderTune() {
 /* ---------- wiring ---------- */
 $('btnCfg').onclick = function () { $('cfg').classList.toggle('open'); };
 $('last').onclick = function () { $('logPanel').classList.toggle('open'); };
-document.querySelectorAll('[data-adv]').forEach(function (b) {
-  b.onclick = function () { st.adv = b.getAttribute('data-adv'); saveSt(); renderTop(); };
-});
+$('btnInitAll').onclick = function () {
+  var out = [];
+  groups.forEach(function (g) {
+    if (!g.c) return;
+    for (var i = 0; i < g.n; i++) { var r = rollInit(g, i); out.push((g.n > 1 ? g.c.name + ' ' + (i + 1) : g.c.name) + ' ' + r.tot); }
+  });
+  if (out.length) say('Initiative', '', '', out.join(' | '));
+};
 $('btnLoad').onclick = function () { start($('encIn').value.trim(), !(typeof ENCOUNTER === 'string' && ENCOUNTER)); $('cfgMsg').textContent = ''; };
-$('btnResetHp').onclick = function () { st.taken = {}; saveSt(); groups.forEach(function (g) { g.insts.forEach(function (x, i) { paintInst(g, i); }); }); };
+$('btnResetHp').onclick = function () {
+  st.taken = {}; st.init = {}; saveSt();
+  groups.forEach(function (g) { g.insts.forEach(function (x, i) { paintInst(g, i); }); });
+};
 $('btnRefresh').onclick = function () {
   groups.forEach(function (g) { lsDel('dnd-cr2:' + g.key); });
   start($('encIn').value.trim() || '', false);
@@ -571,7 +571,6 @@ $('btnPaste').onclick = function () {
     start($('encIn').value.trim(), false);
   } catch (err) { $('cfgMsg').textContent = 'Could not read that: ' + err.message; }
 };
-
 $('btnLb').onclick = function () {
   var parts = [];
   $('lbIn').value.split(/\n+/).forEach(function (line) {
