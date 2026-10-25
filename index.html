@@ -102,7 +102,7 @@
 
 <div id="groups"></div>
 
-<div id="foot"><a href="#" id="lnkReset">Reset HP and init</a> &middot; <a href="setup.html" id="lnkSetup">Setup</a> &middot; Build 14</div>
+<div id="foot"><a href="#" id="lnkReset">Reset HP and init</a> &middot; <a href="setup.html" id="lnkSetup">Setup</a> &middot; Build 15</div>
 
 <div id="rollbar">
   <div id="last">Tap a damage button to roll. Tap here for the log.</div>
@@ -122,7 +122,7 @@ var ABIL_KEYS = { strength: 'str', dexterity: 'dex', constitution: 'con',
 var ABIL_NAMES = '(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)';
 
 function cleanText(s) {
-  return String(s || '').replace(/\*\*/g, '').replace(/_([^_]+)_/g, '$1')
+  return String(s || '').replace(/([A-Za-z]+)\s*\[[^\]]*\]\|[^|\s]*\|\1/g, '$1').replace(/\s*\[[^\]]*\]\|[^|\s]*\|/g, ' ').replace(/\*\*/g, '').replace(/_([^_]+)_/g, '$1')
     .replace(/:\s*\n+\s*[-*]\s+/g, ': ').replace(/\s*\n\s*[-*]\s+/g, ' | ')
     .replace(/\s+/g, ' ').trim();
 }
@@ -184,6 +184,10 @@ function parseAction(a) {
     }
     var tm = /DC\s*:?\s*\d+,\s*([^.]*?)\.\s*(?:Failure|Success)/i.exec(desc);
     if (tm && !/-foot|cone|line|emanation|sphere|cylinder|cube/i.test(tm[1])) bits.push('Target: ' + tm[1].trim());
+    var fm = /damage,?\s+and\s+([^.]*)\./i.exec(desc);
+    if (save && fm) bits.push(fm[1].trim().replace(/^./, function (ch) { return ch.toUpperCase(); }));
+    var om = /Failure or Success:\s*([^.]*)\./i.exec(desc);
+    if (om) bits.push(om[1].trim().replace(/^./, function (ch) { return ch.toUpperCase(); }));
     desc.split(/(?<=\.)\s+/).forEach(function (s) {
       if (/^If /i.test(s) && !/\d\s*\(\d*d\d/i.test(s)) bits.push(s.replace(/\.$/, ''));
     });
@@ -604,6 +608,7 @@ function buildGroup(g) {
   var rest = [], legFeat = [];
   c.features.forEach(function (f) {
     if (/^multiattack/i.test(f.name)) { var m = el('div', 'ma'); m.innerHTML = '<b>' + esc(f.name) + '</b> ' + esc(f.desc); box.appendChild(m); }
+    else if (!f.legendary && /spellcasting/i.test(f.name)) { var sp = el('div', 'ma'); sp.innerHTML = '<b>' + esc(f.name) + '</b> ' + bumpDC(f.desc); box.appendChild(sp); }
     else if (f.legendary) legFeat.push(f);
     else rest.push(f);
   });
