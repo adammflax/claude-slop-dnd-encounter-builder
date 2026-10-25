@@ -6,7 +6,7 @@
 <title>Encounter</title>
 <style>
   * { box-sizing: border-box; }
-  body { margin: 0; font: 12px/1.25 system-ui, Arial, sans-serif; background: #fdf6e3; color: #222; padding-bottom: 56px; -webkit-text-size-adjust: 100%; }
+  body { margin: 0; font: 12px/1.25 system-ui, Arial, sans-serif; background: #fdf6e3; color: #222; padding-bottom: 30px; -webkit-text-size-adjust: 100%; }
   button { font: inherit; font-size: 13px; min-height: 34px; padding: 2px 8px; border: 1px solid #8b1a1a; background: #fff; color: #8b1a1a; border-radius: 4px; cursor: pointer; touch-action: manipulation; }
   button:active { background: #8b1a1a; color: #fff; }
   input, textarea { font: inherit; font-size: 16px; border: 1px solid #c9bda0; border-radius: 4px; padding: 4px; background: #fff; }
@@ -76,8 +76,9 @@
   .dcb { background: #ffe8a3; border-radius: 2px; padding: 0 2px; }
 
   #rollbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: #222; color: #fff; }
-  #last { padding: 6px 10px; font-size: 13px; min-height: 40px; cursor: pointer; }
-  #last .big { font-size: 20px; font-weight: bold; color: #ffd75e; margin: 0 3px; }
+  #last { padding: 3px 10px; font-size: 12px; line-height: 20px; height: 26px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; }
+  #last br { display: none; }
+  #last .big { font-size: 15px; font-weight: bold; color: #ffd75e; margin: 0 3px; }
   #last .sm { color: #bbb; }
   #logPanel { display: none; max-height: 40vh; overflow-y: auto; padding: 4px 10px; border-top: 1px solid #444; }
   #logPanel.open { display: block; }
@@ -102,7 +103,7 @@
 
 <div id="groups"></div>
 
-<div id="foot"><a href="#" id="lnkReset">Reset HP and init</a> &middot; <a href="setup.html" id="lnkSetup">Setup</a> &middot; Build 15</div>
+<div id="foot"><a href="#" id="lnkReset">Reset HP and init</a> &middot; <a href="setup.html" id="lnkSetup">Setup</a> &middot; Build 17</div>
 
 <div id="rollbar">
   <div id="last">Tap a damage button to roll. Tap here for the log.</div>
@@ -204,14 +205,14 @@ function parseAction(a) {
     });
     if (alt.length) {
       var altAll = alt.slice(0, 1).concat(base.slice(1));
-      var cm = /—\s*or\s*\d+\s*\([^)]+\)\s*[A-Za-z]+\s+damage\s+(if [^—.]+)/i.exec(desc);
+      var cm = /(?:—|–|,|\s)or\s*\d+\s*\([^)]+\)\s*[A-Za-z]+\s+damage,?\s+(if [^—–,.]+)/i.exec(desc);
       var condTxt = cm ? cm[1].trim() : '';
       var short = condTxt.replace(/^if\s+(the\s+)?(target|creature)\s+(is|has)\s+/i, 'if ').replace(/\s+by the .*$/i, '');
       var adv = /with Advantage if ([^)]+)\)/i.exec(desc);
       out.attacks.push({
         name: a.name + (short ? ' (' + short + ')' : ' (alt)'), kind: 'attack', bonus: bonus,
         dmg: altAll.map(dice).join('+'), type: types(altAll), parts: altAll.map(part),
-        note: condTxt ? 'use ' + condTxt : 'alternate damage, see description'
+        note: condTxt ? 'use ' + condTxt : desc.replace(/^[^.]*?(?:reach|range)[^.]*?ft\.?\s*/i, '').slice(0, 220)
       });
     }
   } else if (save && (base.length || cond.length)) {
