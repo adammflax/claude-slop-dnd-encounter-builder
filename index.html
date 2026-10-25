@@ -50,9 +50,10 @@
   .an b { display: block; }
   .an .sm { display: block; font-size: 10px; }
   .atk .dm { font-weight: bold; }
-  .leg { margin: 4px 0 2px; border-top: 2px solid #8b1a1a66; }
-  .lh { font-weight: bold; color: #8b1a1a; margin: 3px 0 1px; }
-  .lh .sm { font-weight: normal; }
+  .leg { margin: 5px 0 3px; padding: 2px 6px 3px; background: #f7ece6; border-left: 3px solid #8b1a1a; border-radius: 3px; }
+  .lh { font-weight: bold; color: #8b1a1a; margin: 2px 0; }
+  .lf { padding: 3px 0; border-top: 1px dotted #d9c3bb; font-size: 12px; line-height: 1.25; }
+  .lf b { font-size: 13px; }
   .fch { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 2px; }
   .fchip { padding: 4px 8px; border: 1px solid #c9bda0; background: #f6efdc; border-radius: 10px; font-size: 12px; cursor: pointer; }
   .fchip.on { background: #8b1a1a; color: #fff; border-color: #8b1a1a; }
@@ -130,7 +131,7 @@
   <div class="sm">Open the creature's api.open5e.com address in a browser tab, copy all the text, paste it below.</div>
   <textarea id="pasteJson" rows="2"></textarea>
   <div class="row"><button id="btnPaste">Add creature data</button></div>
-  <div class="sm" style="margin-top:8px">Build 9: to-hit tiers, legendary section</div>
+  <div class="sm" style="margin-top:8px">Build 10: legendary list, recharge names</div>
 </div>
 
 <div id="groups"></div>
@@ -152,7 +153,15 @@ var ABIL_KEYS = { strength: 'str', dexterity: 'dex', constitution: 'con',
 var ABIL_NAMES = '(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)';
 
 function cleanText(s) {
-  return String(s || '').replace(/_([^_]+)_/g, '$1').replace(/\s+/g, ' ').trim();
+  return String(s || '').replace(/\*\*/g, '').replace(/_([^_]+)_/g, '$1')
+    .replace(/:\s*\n+\s*[-*]\s+/g, ': ').replace(/\s*\n\s*[-*]\s+/g, ' | ')
+    .replace(/\s+/g, ' ').trim();
+}
+
+/** Recharge info lives in usage_limits, not in the name. */
+function usageSuffix(u) {
+  if (!u || !u.type || !/RECHARGE_ON_ROLL/i.test(String(u.type)) || !u.param) return '';
+  return ' (Recharge ' + u.param + (+u.param < 6 ? '-6' : '') + ')';
 }
 
 function actionLabel(t) {
@@ -263,15 +272,24 @@ function normalizeCreature(c) {
     return { name: t.name, kind: 'Trait', desc: cleanText(t.desc) };
   });
   var attacks = [];
-  (c.actions || []).forEach(function (a) {
-    if (intro.consumed.indexOf(a) >= 0) return;
-    var leg = a.action_type === 'LEGENDARY_ACTION';
-    var p = parseAction(a);
-    p.attacks.forEach(function (x) { if (leg) x.legendary = true; attacks.push(x); });
-    if (p.feature) { if (leg) p.feature.legendary = true; features.push(p.feature); }
+  (c.actions || []).forEach(function (a0) {
+    if (intro.consumed.indexOf(a0) >= 0) return;
+    var leg = a0.action_type === 'LEGENDARY_ACTION';
+    var cost = leg && a0.legendary_action_cost > 1 && !/cost/i.test(a0.name || '') ? ' (Costs ' + a0.legendary_action_cost + ')' : '';
+    var a = Object.assign({}, a0, { name: a0.name + usageSuffix(a0.usage_limits) + cost });
+    var p = parseAction(a), ord = a0.order_in_statblock || 0;
+    p.attacks.forEach(function (x) { x.order = ord; if (leg) x.legendary = true; attacks.push(x); });
+    if (p.feature) { p.feature.order = ord; if (leg) p.feature.legendary = true; features.push(p.feature); }
   });
   var legAny = attacks.concat(features).some(function (x) { return x.legendary; });
-  var legendary = (legAny || intro.uses !== null) ? { uses: intro.uses, lair: intro.lair } : null;
+  /* Open5e's JSON has no "Legendary Action Uses" line (its website writes one in itself),
+     so fall back to the 2024 standard: 3, or 3 (4 in Lair) when Legendary Resistance mentions a lair. */
+  var assumed = false;
+  if (legAny && intro.uses === null) {
+    var hasLair = (c.traits || []).concat(c.actions || []).some(function (e) { return /legendary resistance[^)]*in lair/i.test(e.name || ''); });
+    intro.uses = 3; intro.lair = hasLair ? 4 : null; assumed = true;
+  }
+  var legendary = (legAny || intro.uses !== null) ? { uses: intro.uses, lair: intro.lair, assumed: assumed } : null;
 
   var speed = Object.keys(c.speed || {}).filter(function (k) {
     return k !== 'unit' && k !== 'hover' && c.speed[k] > 0;
@@ -438,12 +456,12 @@ function say(who, what, big, small) {
 
 /* ---------- loading ---------- */
 function getCreature(key) {
-  var cached = lsGet('dnd-cr5:' + key, null);
+  var cached = lsGet('dnd-cr6:' + key, null);
   if (cached) return Promise.resolve(cached);
   return fetch(OPEN5E + encodeURIComponent(key) + '/').then(function (r) {
     if (!r.ok) throw new Error('Open5e returned ' + r.status + ' for ' + key);
     return r.json();
-  }).then(function (j) { var c = normalizeCreature(j); lsSet('dnd-cr5:' + key, c); return c; });
+  }).then(function (j) { var c = normalizeCreature(j); lsSet('dnd-cr6:' + key, c); return c; });
 }
 
 function start(str, persistManual) {
@@ -632,16 +650,17 @@ function buildGroup(g) {
 
   c.attacks.forEach(function (a, ai) { if (!a.legendary) attackRow(a, ai, box); });
 
-  var legAtk = [];
-  c.attacks.forEach(function (a, ai) { if (a.legendary) legAtk.push([a, ai]); });
-  if (c.legendary && (legAtk.length || legFeat.length)) {
-    var leg = el('div', 'leg'), lh = el('div', 'lh');
-    var lu = c.legendary.uses;
-    lh.textContent = 'Legendary actions - ' + (lu !== null && lu !== undefined ? lu + (c.legendary.lair ? ' (' + c.legendary.lair + ' in lair)' : '') : '3');
-    if (lu === null || lu === undefined) lh.appendChild(el('span', 'sm', ' (assumed, not in data)'));
-    leg.appendChild(lh);
-    legAtk.forEach(function (x) { attackRow(x[0], x[1], leg); });
-    if (legFeat.length) chipRow(legFeat, leg, false);
+  var legList = [];
+  c.attacks.forEach(function (a, ai) { if (a.legendary) legList.push({ order: a.order || 0, i: legList.length, a: a, ai: ai }); });
+  legFeat.forEach(function (f) { legList.push({ order: f.order || 0, i: legList.length, f: f }); });
+  legList.sort(function (x, y) { return x.order - y.order || x.i - y.i; });
+  if (c.legendary && legList.length) {
+    var leg = el('div', 'leg'), lu = c.legendary.uses;
+    leg.appendChild(el('div', 'lh', 'Legendary actions - ' + (lu !== null && lu !== undefined ? lu : 3) + (c.legendary.lair ? ' (' + c.legendary.lair + ' in lair)' : '')));
+    legList.forEach(function (x) {
+      if (x.a) attackRow(x.a, x.ai, leg);
+      else { var r = el('div', 'lf'); r.innerHTML = '<b>' + esc(x.f.name) + '</b> ' + bumpDC(x.f.desc); leg.appendChild(r); }
+    });
     box.appendChild(leg);
   }
 
@@ -710,13 +729,13 @@ $('btnResetHp').onclick = function () {
   groups.forEach(function (g) { g.insts.forEach(function (x, i) { paintInst(g, i); }); });
 };
 $('btnRefresh').onclick = function () {
-  groups.forEach(function (g) { lsDel('dnd-cr5:' + g.key); });
+  groups.forEach(function (g) { lsDel('dnd-cr6:' + g.key); });
   start($('encIn').value.trim() || '', false);
 };
 $('btnPaste').onclick = function () {
   try {
     var j = JSON.parse($('pasteJson').value), list = j.results || [j], n = 0;
-    list.forEach(function (x) { if (x && x.key) { lsSet('dnd-cr5:' + x.key, normalizeCreature(x)); n++; } });
+    list.forEach(function (x) { if (x && x.key) { lsSet('dnd-cr6:' + x.key, normalizeCreature(x)); n++; } });
     if (!n) throw new Error('no creature found in that text');
     $('pasteJson').value = ''; $('cfgMsg').textContent = 'Added ' + n + '. Reloading encounter...';
     start($('encIn').value.trim(), false);
