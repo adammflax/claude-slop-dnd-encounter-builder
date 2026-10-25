@@ -33,7 +33,7 @@
   #cfg.open { display: block; }
   #cfg h4 { margin: 8px 0 3px; font-size: 11px; text-transform: uppercase; color: #8b1a1a; }
   #cfg textarea, #cfg input { width: 100%; }
-  .tune { display: grid; grid-template-columns: 1fr repeat(5, 46px); gap: 3px; align-items: center; }
+  .tune { display: grid; grid-template-columns: 1fr repeat(6, 40px); gap: 3px; align-items: center; }
   .tune input { width: 100%; padding: 3px; }
   .tune .h { font-size: 10px; color: #777; }
 
@@ -120,7 +120,7 @@
   <div class="row"><button id="btnLb">Make link</button><button id="btnLbCopy">Copy</button></div>
   <input id="lbOut" readonly placeholder="Your link appears here">
 
-  <h4>Tiers: HP and damage are % of normal; saves, DC and AC are flat bonuses</h4>
+  <h4>Tiers: HP and damage are % of normal; saves, DC, AC and to-hit are flat bonuses</h4>
   <div class="tune" id="tune"></div>
 
   <h4>If creatures fail to load: paste their JSON</h4>
@@ -289,10 +289,10 @@ function normalizeCreature(c) {
 'use strict';
 
 var TIER_DEFAULTS = [
-  { id: 'l1',  label: 'Level 1',     hp: 60,  dmg: 60,  save: -2, dc: -2, ac: -2 },
-  { id: 'low', label: 'Low level',   hp: 80,  dmg: 80,  save: -1, dc: -1, ac: -1 },
-  { id: 'std', label: 'Standard',    hp: 100, dmg: 100, save: 0,  dc: 0,  ac: 0 },
-  { id: 'exp', label: 'Experienced', hp: 130, dmg: 125, save: 2,  dc: 2,  ac: 2 }
+  { id: 'l1',  label: 'Level 1',     hp: 60,  dmg: 60,  save: -2, dc: -2, ac: -2, hit: -2 },
+  { id: 'low', label: 'Low level',   hp: 80,  dmg: 80,  save: -1, dc: -1, ac: -1, hit: -1 },
+  { id: 'std', label: 'Standard',    hp: 100, dmg: 100, save: 0,  dc: 0,  ac: 0, hit: 0 },
+  { id: 'exp', label: 'Experienced', hp: 130, dmg: 125, save: 2,  dc: 2,  ac: 2, hit: 2 }
 ];
 var SHORT = { l1: 'Lvl 1', low: 'Low', std: 'Std', exp: 'Exp' };
 
@@ -335,6 +335,7 @@ if (!tiers || tiers.length !== 4) tiers = JSON.parse(JSON.stringify(TIER_DEFAULT
 tiers.forEach(function (t) {
   var def = TIER_DEFAULTS.filter(function (x) { return x.id === t.id; })[0] || {};
   if (t.ac === undefined) t.ac = def.ac || 0;
+  if (t.hit === undefined) t.hit = def.hit || 0;
 });
 var enc = [], groups = [], SKEY = '', st = { tier: 'std', taken: {}, init: {} };
 var logLines = [];
@@ -549,7 +550,7 @@ function buildGroup(g) {
   c.attacks.forEach(function (a, ai) {
     var row = el('div', 'atk');
     var an = el('div', 'an');
-    an.appendChild(el('b', '', a.name + '  ' + (a.kind === 'save' ? 'DC ' + (a.dc + t.dc) + ' ' + a.ability : sgn(a.bonus))));
+    an.appendChild(el('b', '', a.name + '  ' + (a.kind === 'save' ? 'DC ' + (a.dc + t.dc) + ' ' + a.ability : sgn(a.bonus + t.hit))));
     var lg = el('span', 'sm');
     partTypes(a).forEach(function (ty) {
       var sw = el('i', 'tg'); sw.style.background = tcol(ty); lg.appendChild(sw); lg.appendChild(document.createTextNode(ty + ' '));
@@ -625,10 +626,10 @@ function render() {
 
 function renderTune() {
   var box = $('tune'); box.innerHTML = '';
-  ['', 'HP %', 'Dmg %', 'Save', 'DC', 'AC'].forEach(function (h) { box.appendChild(el('div', 'h', h)); });
+  ['', 'HP %', 'Dmg %', 'Save', 'DC', 'AC', 'Hit'].forEach(function (h) { box.appendChild(el('div', 'h', h)); });
   tiers.forEach(function (t) {
     box.appendChild(el('div', '', t.label));
-    ['hp', 'dmg', 'save', 'dc', 'ac'].forEach(function (f) {
+    ['hp', 'dmg', 'save', 'dc', 'ac', 'hit'].forEach(function (f) {
       var i = el('input'); i.type = 'number'; i.value = t[f];
       i.oninput = function () { t[f] = +i.value || 0; saveTiers(); if (t.id === st.tier) render(); };
       box.appendChild(i);
