@@ -14,28 +14,19 @@
   .row { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; margin: 3px 0; }
 
   #top { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 5px 6px; background: #8b1a1a; color: #fff; }
-  #top b { font-size: 14px; margin-right: auto; }
+  #top b { font-size: 14px; margin-right: 4px; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #encName:empty { display: none; }
   #top button { border-color: #fff; background: transparent; color: #fff; min-height: 32px; }
   #top button:active { background: #fff; color: #8b1a1a; }
-  #tiers { display: flex; flex: 1 1 auto; }
-  #tiers button { flex: 1; border-radius: 0; margin-left: -1px; white-space: nowrap; }
+  #tiers { display: flex; flex: 1 1 210px; }
+  #tiers button { flex: 1; border-radius: 0; margin-left: -1px; white-space: nowrap; padding: 2px 4px; }
   #tiers button:first-child { border-radius: 4px 0 0 4px; margin-left: 0; }
   #tiers button:last-child { border-radius: 0 4px 4px 0; }
   #tiers button.on { background: #fff; color: #8b1a1a; font-weight: bold; }
   #tiers .s { display: none; }
-  @media (max-width: 640px) {
-    #tiers { order: 3; flex: 1 1 100%; }
-    #tiers .f { display: none; }
-    #tiers .s { display: inline; }
-  }
-
-  #cfg { margin: 6px; background: #fff; border: 1px solid #c9bda0; border-radius: 6px; padding: 6px; display: none; }
-  #cfg.open { display: block; }
-  #cfg h4 { margin: 8px 0 3px; font-size: 11px; text-transform: uppercase; color: #8b1a1a; }
-  #cfg textarea, #cfg input { width: 100%; }
-  .tune { display: grid; grid-template-columns: 1fr repeat(6, 40px); gap: 3px; align-items: center; }
-  .tune input { width: 100%; padding: 3px; }
-  .tune .h { font-size: 10px; color: #777; }
+  @media (max-width: 640px) { #tiers .f { display: none; } #tiers .s { display: inline; } }
+  #foot { text-align: center; padding: 8px 6px 14px; color: #777; font-size: 11px; }
+  #foot a { color: #8b1a1a; }
 
   #groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 6px; padding: 6px; align-items: start; }
   .grp { background: #fff; border: 1px solid #c9bda0; border-radius: 6px; padding: 5px; }
@@ -97,44 +88,21 @@
 </head>
 <body>
 
-<!-- ===================== EDIT THESE TWO LINES PER ENCOUNTER ===================== -->
+<!-- Optional: bake an encounter into this file. Normally leave both empty: the link carries the encounter. -->
 <script>
   var ENCOUNTER_NAME = "";
   var ENCOUNTER = "";
 </script>
-<!-- Format: COUNTxURL joined with &  (api.open5e.com/v2/creatures/... or open5e.com/monsters/... URLs, encoded or not) -->
-<!-- ============================================================================== -->
 
 <div id="top">
-  <b id="encName">Encounter</b>
-  <button id="btnInitAll">Roll init</button>
-  <button id="btnCfg">Setup</button>
+  <b id="encName"></b>
   <div id="tiers"></div>
-</div>
-
-<div id="cfg">
-  <h4>Encounter</h4>
-  <textarea id="encIn" rows="2" placeholder="3xhttps%3A%2F%2Fapi.open5e.com%2Fv2%2Fcreatures%2Fsrd-2024_mimic%2F&1xhttps%3A%2F%2Fopen5e.com%2Fmonsters%2Fsrd-2024_adult-black-dragon"></textarea>
-  <div class="row"><button id="btnLoad">Load</button><button id="btnResetHp">Reset HP and init</button><button id="btnRefresh">Refresh data</button></div>
-  <div class="sm" id="cfgMsg"></div>
-
-  <h4>Link builder (for your Google Site)</h4>
-  <div class="sm">One creature per line, e.g. "3 https://open5e.com/monsters/srd-2024_mimic".</div>
-  <textarea id="lbIn" rows="3" placeholder="3 https://open5e.com/monsters/srd-2024_mimic&#10;1 https://open5e.com/monsters/srd-2024_adult-black-dragon"></textarea>
-  <div class="row"><button id="btnLb">Make link</button><button id="btnLbCopy">Copy</button></div>
-  <input id="lbOut" readonly placeholder="Your link appears here">
-
-  <h4>Tiers: HP and damage are % of normal; saves, DC, AC and to-hit are flat bonuses</h4>
-  <div class="tune" id="tune"></div>
-
-  <h4>If creatures fail to load: paste their JSON</h4>
-  <div class="sm">Open the creature's api.open5e.com address in a browser tab, copy all the text, paste it below.</div>
-  <textarea id="pasteJson" rows="2"></textarea>
-  <div class="row"><button id="btnPaste">Add creature data</button></div>
-  <div class="sm" style="margin-top:8px">Build 10: legendary list, recharge names</div>
+  <button id="btnInitAll">Roll init</button>
 </div>
 
 <div id="groups"></div>
+
+<div id="foot"><a href="#" id="lnkReset">Reset HP and init</a> &middot; <a href="setup.html" id="lnkSetup">Setup</a> &middot; Build 14</div>
 
 <div id="rollbar">
   <div id="last">Tap a damage button to roll. Tap here for the log.</div>
@@ -142,7 +110,8 @@
 </div>
 
 <script>
-/* Open5e importer: fetches creatures and converts them to the sidebar's own schema.
+/**
+ * Open5e importer: fetches creatures and converts them to the sidebar's own schema.
  * Open5e's structured "attacks" array drops extra damage (e.g. +1d6 poison) and
  * conditional/alternate damage, so we parse the action text (desc) instead.
  */
@@ -200,19 +169,45 @@ function parseAction(a) {
   function part(x) { return { dice: x.dice, type: x.type }; }
   function types(arr) { return uniq(arr.map(function (x) { return x.type; })).join(' + '); }
 
+  /* Rules that aren't damage dice: action-economy tag, who the save targets, "If ..." riders (Prone, Grappled...). */
+  function extras() {
+    var bits = [];
+    if (a.action_type === 'BONUS_ACTION') bits.push('Bonus action');
+    else if (a.action_type === 'REACTION') bits.push('Reaction');
+    if (hit) {
+      var rm = /reach\s*(\d+)\s*ft/i.exec(desc), gm = /range\s*(\d+(?:\/\d+)?)\s*ft/i.exec(desc), rb = [];
+      if (rm && +rm[1] !== 5) rb.push('reach ' + rm[1] + ' ft');
+      if (gm) rb.push('range ' + gm[1] + ' ft');
+      if (rb.length) bits.push(rb.join(', '));
+      var am = /\(\s*with (Advantage|Disadvantage) if ([^)]+)\)/i.exec(desc);
+      if (am) bits.push(am[1] + ' if ' + am[2]);
+    }
+    var tm = /DC\s*:?\s*\d+,\s*([^.]*?)\.\s*(?:Failure|Success)/i.exec(desc);
+    if (tm && !/-foot|cone|line|emanation|sphere|cylinder|cube/i.test(tm[1])) bits.push('Target: ' + tm[1].trim());
+    desc.split(/(?<=\.)\s+/).forEach(function (s) {
+      if (/^If /i.test(s) && !/\d\s*\(\d*d\d/i.test(s)) bits.push(s.replace(/\.$/, ''));
+    });
+    return bits.join('; ');
+  }
+  function joinNote(x) { var e = extras(); return [x, e].filter(Boolean).join('; '); }
+
   if (hit && base.length) {
     var bonus = +hit[1];
     out.attacks.push({
       name: a.name, kind: 'attack', bonus: bonus,
       dmg: base.map(dice).join('+'), type: types(base), parts: base.map(part),
-      note: cond.map(function (c) { return '+' + c.dice + ' ' + c.type + ' (conditional)'; }).join('; ')
+      note: joinNote(cond.map(function (c) { return '+' + c.dice + ' ' + c.type + ' (conditional)'; }).join('; '))
     });
     if (alt.length) {
       var altAll = alt.slice(0, 1).concat(base.slice(1));
+      var cm = /—\s*or\s*\d+\s*\([^)]+\)\s*[A-Za-z]+\s+damage\s+(if [^—.]+)/i.exec(desc);
+      var condTxt = cm ? cm[1].trim() : '';
+      var short = condTxt.replace(/^if\s+(the\s+)?(target|creature)\s+(is|has)\s+/i, 'if ').replace(/\s+by the .*$/i, '');
+      var adv = /with Advantage if ([^)]+)\)/i.exec(desc);
       out.attacks.push({
-        name: a.name + ' (alt)', kind: 'attack', bonus: bonus,
+        name: a.name + (short ? ' (' + short + ')' : ' (alt)'), kind: 'attack', bonus: bonus,
         dmg: altAll.map(dice).join('+'), type: types(altAll), parts: altAll.map(part),
-        note: 'alternate damage, see description'
+        note: condTxt ? 'use ' + condTxt : 'alternate damage, see description'
       });
     }
   } else if (save && (base.length || cond.length)) {
@@ -220,7 +215,7 @@ function parseAction(a) {
     out.attacks.push({
       name: a.name, kind: 'save', dc: save.dc, ability: save.ability.slice(0, 3),
       bonus: 0, dmg: dmgs.map(dice).join('+'), type: types(dmgs), parts: dmgs.map(part),
-      note: /half (as much )?damage/i.test(desc) ? 'half damage on success' : ''
+      note: joinNote(/half (as much )?damage/i.test(desc) ? 'half damage on success' : '')
     });
   } else {
     out.feature = { name: a.name, kind: actionLabel(a.action_type), desc: desc };
@@ -376,6 +371,11 @@ function parseEncounter(s) {
   });
   return out;
 }
+function nameParam() {
+  var m = /(?:^|[?&#])name=([^&#]*)/.exec((location.search || '') + (location.hash || ''));
+  if (!m) return '';
+  try { return decodeURIComponent(m[1].replace(/\+/g, ' ')); } catch (e) { return m[1]; }
+}
 function urlEncounter() {
   var raw = (location.search || '').slice(1) || (location.hash || '').slice(1);
   return raw.replace(/^e=/, '');
@@ -464,31 +464,30 @@ function getCreature(key) {
   }).then(function (j) { var c = normalizeCreature(j); lsSet('dnd-cr6:' + key, c); return c; });
 }
 
-function start(str, persistManual) {
+function start(str) {
   enc = parseEncounter(str);
-  $('encIn').value = str || '';
-  if (persistManual) lsSet('dnd-enc-manual', str);
-  SKEY = 'dnd-enc-st3:' + enc.map(function (e) { return e.key + 'x' + e.n; }).join('&');
+  var nm = nameParam();
+  SKEY = 'dnd-enc-st3:' + (nm ? nm + '|' : '') + enc.map(function (e) { return e.key + 'x' + e.n; }).join('&');
   st = lsGet(SKEY, null) || { tier: 'std', taken: {}, init: {} };
   if (!st.taken) st.taken = {};
   if (!st.init) st.init = {};
   groups = enc.map(function (e, gi) { return { gi: gi, key: e.key, n: e.n, c: null, err: null, insts: [], pre: {} }; });
-  renderTop(); render();
-  if (!enc.length) { $('cfgMsg').textContent = 'No creatures found in that text.'; $('cfg').classList.add('open'); return; }
+  renderTop();
+  if (!enc.length) {
+    var none = el('div', 'grp', 'No encounter in this link. ');
+    var na = el('a', '', 'Build one on the setup page'); na.href = 'setup.html';
+    none.appendChild(na); $('groups').innerHTML = ''; $('groups').appendChild(none);
+    return;
+  }
+  render();
   Promise.all(groups.map(function (g) {
     return getCreature(g.key).then(function (c) { g.c = c; }).catch(function (e) { g.err = e.message; });
-  })).then(function () {
-    render();
-    if (groups.some(function (g) { return g.err; })) {
-      $('cfgMsg').textContent = 'Some creatures failed to load. Use the paste box below.';
-      $('cfg').classList.add('open');
-    }
-  });
+  })).then(function () { render(); });
 }
 
 /* ---------- rendering ---------- */
 function renderTop() {
-  $('encName').textContent = (typeof ENCOUNTER_NAME === 'string' && ENCOUNTER_NAME) || 'Encounter';
+  $('encName').textContent = nameParam() || (typeof ENCOUNTER_NAME === 'string' && ENCOUNTER_NAME) || '';
   var box = $('tiers'); box.innerHTML = '';
   tiers.forEach(function (t) {
     var b = el('button', t.id === st.tier ? 'on' : '');
@@ -572,7 +571,12 @@ function paintPre(g, ai, box) {
 
 function buildGroup(g) {
   var box = el('div', 'grp');
-  if (g.err) { box.appendChild(el('b', '', g.key)); box.appendChild(el('div', 'sm', g.err)); return box; }
+  if (g.err) {
+    box.appendChild(el('b', '', g.key));
+    var em = el('div', 'sm', g.err + '. '), ea = el('a', '', 'Setup page'); ea.href = 'setup.html';
+    em.appendChild(ea); em.appendChild(document.createTextNode(' can paste its data.'));
+    box.appendChild(em); return box;
+  }
   if (!g.c) { box.appendChild(el('b', '', g.key)); box.appendChild(el('div', 'sm', 'Loading...')); return box; }
   var c = g.c, t = T(), KEYS = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
   function mod(k) { return Math.floor(((c.abilities[k] || 10) - 10) / 2); }
@@ -699,21 +703,7 @@ function render() {
   groups.forEach(function (g) { box.appendChild(buildGroup(g)); });
 }
 
-function renderTune() {
-  var box = $('tune'); box.innerHTML = '';
-  ['', 'HP %', 'Dmg %', 'Save', 'DC', 'AC', 'Hit'].forEach(function (h) { box.appendChild(el('div', 'h', h)); });
-  tiers.forEach(function (t) {
-    box.appendChild(el('div', '', t.label));
-    ['hp', 'dmg', 'save', 'dc', 'ac', 'hit'].forEach(function (f) {
-      var i = el('input'); i.type = 'number'; i.value = t[f];
-      i.oninput = function () { t[f] = +i.value || 0; saveTiers(); if (t.id === st.tier) render(); };
-      box.appendChild(i);
-    });
-  });
-}
-
 /* ---------- wiring ---------- */
-$('btnCfg').onclick = function () { $('cfg').classList.toggle('open'); };
 $('last').onclick = function () { $('logPanel').classList.toggle('open'); };
 $('btnInitAll').onclick = function () {
   var out = [];
@@ -723,45 +713,23 @@ $('btnInitAll').onclick = function () {
   });
   if (out.length) say('Initiative', '', '', out.join(' | '));
 };
-$('btnLoad').onclick = function () { start($('encIn').value.trim(), !(typeof ENCOUNTER === 'string' && ENCOUNTER)); $('cfgMsg').textContent = ''; };
-$('btnResetHp').onclick = function () {
+var resetTimer = null;
+$('lnkReset').onclick = function (e) {
+  e.preventDefault();
+  var link = this;
+  if (!resetTimer) {
+    link.textContent = 'Tap again to reset all HP and initiative';
+    resetTimer = setTimeout(function () { resetTimer = null; link.textContent = 'Reset HP and init'; }, 4000);
+    return;
+  }
+  clearTimeout(resetTimer); resetTimer = null; link.textContent = 'Reset HP and init';
   st.taken = {}; st.init = {}; saveSt();
   groups.forEach(function (g) { g.insts.forEach(function (x, i) { paintInst(g, i); }); });
 };
-$('btnRefresh').onclick = function () {
-  groups.forEach(function (g) { lsDel('dnd-cr6:' + g.key); });
-  start($('encIn').value.trim() || '', false);
-};
-$('btnPaste').onclick = function () {
-  try {
-    var j = JSON.parse($('pasteJson').value), list = j.results || [j], n = 0;
-    list.forEach(function (x) { if (x && x.key) { lsSet('dnd-cr6:' + x.key, normalizeCreature(x)); n++; } });
-    if (!n) throw new Error('no creature found in that text');
-    $('pasteJson').value = ''; $('cfgMsg').textContent = 'Added ' + n + '. Reloading encounter...';
-    start($('encIn').value.trim(), false);
-  } catch (err) { $('cfgMsg').textContent = 'Could not read that: ' + err.message; }
-};
-$('btnLb').onclick = function () {
-  var parts = [];
-  $('lbIn').value.split(/\n+/).forEach(function (line) {
-    line = line.trim(); if (!line) return;
-    var m = /^(\d+)\s*[xX]?\s*(\S+)$/.exec(line), n = 1, u = line;
-    if (m && /[\/:]/.test(m[2])) { n = +m[1]; u = m[2]; }
-    parts.push(n + 'x' + encodeURIComponent(u));
-  });
-  var base = location.href.split(/[?#]/)[0];
-  $('lbOut').value = parts.length ? base + '?' + parts.join('&') : '';
-  $('lbOut').select();
-};
-$('btnLbCopy').onclick = function () {
-  $('lbOut').select();
-  try { document.execCommand('copy'); $('cfgMsg').textContent = 'Copied.'; } catch (e) { $('cfgMsg').textContent = 'Select the link and copy it manually.'; }
-};
 
 /* ---------- init ---------- */
-renderTune();
 var baked = (typeof ENCOUNTER === 'string' && ENCOUNTER) ? ENCOUNTER : '';
-start(urlEncounter() || baked || lsGet('dnd-enc-manual', '') || '', false);
+start(urlEncounter() || baked || '');
 })();
 </script>
 </body>
