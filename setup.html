@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Encounter setup</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; font-size: 14px; margin: 0 auto; max-width: 720px; padding: 12px; color: #222; }
+  h1 { font-size: 18px; margin: 0 0 4px; color: #8b1a1a; }
+  h2 { font-size: 14px; margin: 18px 0 4px; color: #8b1a1a; border-bottom: 1px solid #ddd; }
+  textarea, input[type=text], input:not([type]) { width: 100%; font: inherit; padding: 6px; border: 1px solid #aaa; border-radius: 4px; }
+  button { font: inherit; padding: 6px 12px; margin: 4px 4px 0 0; border: 1px solid #8b1a1a; background: #fff; color: #8b1a1a; border-radius: 4px; }
+  button.solid { background: #8b1a1a; color: #fff; }
+  .sm { font-size: 12px; color: #666; }
+  #msg { margin-top: 10px; font-weight: bold; color: #1a6b1a; min-height: 1em; }
+  #tune { display: grid; grid-template-columns: 1.6fr repeat(6, 1fr); gap: 4px; align-items: center; }
+  #tune .h { font-size: 11px; color: #666; }
+  #tune input { text-align: center; padding: 4px 2px; }
+  a { color: #8b1a1a; }
+</style></head><body>
+<h1>Encounter setup</h1>
+<div class="sm">Settings here are saved in this browser and used by the encounter page. Keep both pages in the same folder on the same site. <a href="index.html">Back to encounter</a></div>
+
+<h2>1. Make an encounter link</h2>
+<div class="sm">One creature per line, e.g. <code>3 https://open5e.com/monsters/srd-2024_mimic</code></div>
+<textarea id="lbIn" rows="4" placeholder="3 https://open5e.com/monsters/srd-2024_mimic&#10;1 https://open5e.com/monsters/srd-2024_adult-black-dragon"></textarea>
+<input id="lbName" placeholder="Encounter name (optional, also keeps its HP separate)" style="margin-top:4px">
+<button class="solid" id="btnLb">Make link</button><button id="btnCopy">Copy</button> <a id="lnkOpen" href="#" target="_blank" style="display:none">Open</a>
+<input id="lbOut" readonly placeholder="Your link appears here" style="margin-top:4px">
+
+<h2>2. Difficulty tiers</h2>
+<div class="sm">HP and damage are % of normal. Save, DC, AC and Hit are flat bonuses.</div>
+<div id="tune"></div>
+<button id="btnTierReset">Reset to defaults</button>
+
+<h2>3. Creature data</h2>
+<div class="sm">If a creature fails to load, open its api.open5e.com address in a browser tab, copy all the text and paste it here.</div>
+<textarea id="pasteJson" rows="3"></textarea>
+<button id="btnPaste">Add creature data</button>
+<button id="btnRefresh">Refresh all creature data</button>
+
+<h2>4. Saved HP and initiative</h2>
+<button id="btnClear">Clear all saved HP and initiative</button>
+
+<div id="msg"></div>
+<div class="sm" style="margin-top:12px">Build 14</div>
+
+<script>
+/**
+ * Open5e importer: fetches creatures and converts them to the sidebar's own schema.
+ * Open5e's structured "attacks" array drops extra damage (e.g. +1d6 poison) and
+ * conditional/alternate damage, so we parse the action text (desc) instead.
+ */
+
+var OPEN5E = 'https://api.open5e.com/v2/creatures/';
+var ABIL_KEYS = { strength: 'str', dexterity: 'dex', constitution: 'con',
+                  intelligence: 'int', wisdom: 'wis', charisma: 'cha' };
+var ABIL_NAMES = '(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)';
+
+function cleanText(s) {
+  return String(s || '').replace(/\*\*/g, '').replace(/_([^_]+)_/g, '$1')
+    .replace(/:\s*\n+\s*[-*]\s+/g, ': ').replace(/\s*\n\s*[-*]\s+/g, ' | ')
+    .replace(/\s+/g, ' ').trim();
+}
+
+/** Recharge info lives in usage_limits, not in the name. */
+function usageSuffix(u) {
+  if (!u || !u.type || !/RECHARGE_ON_ROLL/i.test(String(u.type)) || !u.param) return '';
+  return ' (Recharge ' + u.param + (+u.param < 6 ? '-6' : '') + ')';
+}
+
+function actionLabel(t) {
+  var map = { ACTION: 'Action', BONUS_ACTION: 'Bonus action', REACTION: 'Reaction',
+              LEGENDARY_ACTION: 'Legendary action', LAIR_ACTION: 'Lair action' };
+  return map[t] || 'Action';
+}
+
+function uniq(arr) {
+  return arr.filter(function (x, i) { return arr.indexOf(x) === i; });
+}
+
+/** Returns {attacks: [...], feature: {...} | null} for one Open5e action. */
+function parseAction(a) {
+  var desc = cleanText(a.desc);
+  var out = { attacks: [], feature: null };
+
+  var hit = /(?:Attack Roll|Weapon Attack|Spell Attack)[^:]*:\s*([+-]\d+)/i.exec(desc);
+  var s1 = new RegExp(ABIL_NAMES + '\\s+Saving Throw:?\\s*DC\\s*(\\d+)', 'i').exec(desc);
+  var s2 = new RegExp('DC\\s*(\\d+)\\s+' + ABIL_NAMES + '\\s+saving throw', 'i').exec(desc);
+  var save = s1 ? { ability: s1[1], dc: +s1[2] } : s2 ? { ability: s2[2], dc: +s2[1] } : null;
+
+  var re = /(\d+)\s*\(([^)]+)\)\s*([A-Za-z]+)\s+damage/gi, m;
+  var base = [], alt = [], cond = [];
+  while ((m = re.exec(desc))) {
+    var d = { dice: m[2].replace(/\s+/g, ''), type: m[3].toLowerCase() };
+    var before = desc.slice(Math.max(0, m.index - 8), m.index);
+    var after = desc.slice(re.lastIndex);
+    var cut = after.search(/—|\.\s|\.$|\d+\s*\(/);
+    if (cut >= 0) after = after.slice(0, cut);
+    if (/(^|[\s—–-])or\s*$/i.test(before)) alt.push(d);        // "...damage—or 12 (2d8+3) ..."
+    else if (/\bif\b/i.test(after)) cond.push(d);               // "plus 2 (1d4) ... if the attack roll had Advantage"
+    else base.push(d);
+  }
+  function dice(x) { return x.dice; }
+  function part(x) { return { dice: x.dice, type: x.type }; }
+  function types(arr) { return uniq(arr.map(function (x) { return x.type; })).join(' + '); }
+
+  /* Rules that aren't damage dice: action-economy tag, who the save targets, "If ..." riders (Prone, Grappled...). */
+  function extras() {
+    var bits = [];
+    if (a.action_type === 'BONUS_ACTION') bits.push('Bonus action');
+    else if (a.action_type === 'REACTION') bits.push('Reaction');
+    if (hit) {
+      var rm = /reach\s*(\d+)\s*ft/i.exec(desc), gm = /range\s*(\d+(?:\/\d+)?)\s*ft/i.exec(desc), rb = [];
+      if (rm && +rm[1] !== 5) rb.push('reach ' + rm[1] + ' ft');
+      if (gm) rb.push('range ' + gm[1] + ' ft');
+      if (rb.length) bits.push(rb.join(', '));
+      var am = /\(\s*with (Advantage|Disadvantage) if ([^)]+)\)/i.exec(desc);
+      if (am) bits.push(am[1] + ' if ' + am[2]);
+    }
+    var tm = /DC\s*:?\s*\d+,\s*([^.]*?)\.\s*(?:Failure|Success)/i.exec(desc);
+    if (tm && !/-foot|cone|line|emanation|sphere|cylinder|cube/i.test(tm[1])) bits.push('Target: ' + tm[1].trim());
+    desc.split(/(?<=\.)\s+/).forEach(function (s) {
+      if (/^If /i.test(s) && !/\d\s*\(\d*d\d/i.test(s)) bits.push(s.replace(/\.$/, ''));
+    });
+    return bits.join('; ');
+  }
+  function joinNote(x) { var e = extras(); return [x, e].filter(Boolean).join('; '); }
+
+  if (hit && base.length) {
+    var bonus = +hit[1];
+    out.attacks.push({
+      name: a.name, kind: 'attack', bonus: bonus,
+      dmg: base.map(dice).join('+'), type: types(base), parts: base.map(part),
+      note: joinNote(cond.map(function (c) { return '+' + c.dice + ' ' + c.type + ' (conditional)'; }).join('; '))
+    });
+    if (alt.length) {
+      var altAll = alt.slice(0, 1).concat(base.slice(1));
+      var cm = /—\s*or\s*\d+\s*\([^)]+\)\s*[A-Za-z]+\s+damage\s+(if [^—.]+)/i.exec(desc);
+      var condTxt = cm ? cm[1].trim() : '';
+      var short = condTxt.replace(/^if\s+(the\s+)?(target|creature)\s+(is|has)\s+/i, 'if ').replace(/\s+by the .*$/i, '');
+      var adv = /with Advantage if ([^)]+)\)/i.exec(desc);
+      out.attacks.push({
+        name: a.name + (short ? ' (' + short + ')' : ' (alt)'), kind: 'attack', bonus: bonus,
+        dmg: altAll.map(dice).join('+'), type: types(altAll), parts: altAll.map(part),
+        note: condTxt ? 'use ' + condTxt : 'alternate damage, see description'
+      });
+    }
+  } else if (save && (base.length || cond.length)) {
+    var dmgs = base.length ? base : cond;
+    out.attacks.push({
+      name: a.name, kind: 'save', dc: save.dc, ability: save.ability.slice(0, 3),
+      bonus: 0, dmg: dmgs.map(dice).join('+'), type: types(dmgs), parts: dmgs.map(part),
+      note: joinNote(/half (as much )?damage/i.test(desc) ? 'half damage on success' : '')
+    });
+  } else {
+    out.feature = { name: a.name, kind: actionLabel(a.action_type), desc: desc };
+  }
+  return out;
+}
+
+var NUM_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
+function numWord(s) {
+  s = String(s || '').toLowerCase();
+  return /^\d+$/.test(s) ? +s : (NUM_WORDS[s] || null);
+}
+
+/** How many legendary actions a creature gets, and which entries only state that rule. */
+function findLegendaryIntro(c) {
+  var out = { uses: null, lair: null, consumed: [] };
+  function read(text) {
+    var m = /legendary actions?(?:\s+uses?)?\s*:?\s*(\d+)(?:\s*\(\s*(\d+)\s*in\s+(?:its\s+|the\s+)?lair\s*\))?/i.exec(text);
+    if (m) { out.uses = +m[1]; out.lair = m[2] ? +m[2] : null; return true; }
+    m = /can take (\w+) legendary actions?/i.exec(text);
+    if (m && numWord(m[1])) { out.uses = numWord(m[1]); return true; }
+    return false;
+  }
+  if (c.legendary_desc) read(cleanText(c.legendary_desc));
+  (c.actions || []).concat(c.traits || []).forEach(function (e) {
+    var name = String(e.name || '').trim();
+    var got = read(cleanText(name + ' ' + (e.desc || '')));
+    if (/^legendary actions?( uses?)?$/i.test(name) || (got && /legendary action/i.test(name))) out.consumed.push(e);
+  });
+  return out;
+}
+
+function profBonus(cr) {
+  var n = +cr || 0;
+  return n < 5 ? 2 : n < 9 ? 3 : n < 13 ? 4 : n < 17 ? 5 : n < 21 ? 6 : n < 25 ? 7 : n < 29 ? 8 : 9;
+}
+
+function crLabel(cr) {
+  var map = { 0.125: '1/8', 0.25: '1/4', 0.5: '1/2' };
+  return map[cr] || String(cr);
+}
+
+function normalizeCreature(c) {
+  var ab = c.ability_scores || {}, abilities = {};
+  Object.keys(ABIL_KEYS).forEach(function (k) { abilities[ABIL_KEYS[k]] = ab[k] || 10; });
+
+  var intro = findLegendaryIntro(c);
+  var features = (c.traits || []).filter(function (t) { return intro.consumed.indexOf(t) < 0; }).map(function (t) {
+    return { name: t.name, kind: 'Trait', desc: cleanText(t.desc) };
+  });
+  var attacks = [];
+  (c.actions || []).forEach(function (a0) {
+    if (intro.consumed.indexOf(a0) >= 0) return;
+    var leg = a0.action_type === 'LEGENDARY_ACTION';
+    var cost = leg && a0.legendary_action_cost > 1 && !/cost/i.test(a0.name || '') ? ' (Costs ' + a0.legendary_action_cost + ')' : '';
+    var a = Object.assign({}, a0, { name: a0.name + usageSuffix(a0.usage_limits) + cost });
+    var p = parseAction(a), ord = a0.order_in_statblock || 0;
+    p.attacks.forEach(function (x) { x.order = ord; if (leg) x.legendary = true; attacks.push(x); });
+    if (p.feature) { p.feature.order = ord; if (leg) p.feature.legendary = true; features.push(p.feature); }
+  });
+  var legAny = attacks.concat(features).some(function (x) { return x.legendary; });
+  /* Open5e's JSON has no "Legendary Action Uses" line (its website writes one in itself),
+     so fall back to the 2024 standard: 3, or 3 (4 in Lair) when Legendary Resistance mentions a lair. */
+  var assumed = false;
+  if (legAny && intro.uses === null) {
+    var hasLair = (c.traits || []).concat(c.actions || []).some(function (e) { return /legendary resistance[^)]*in lair/i.test(e.name || ''); });
+    intro.uses = 3; intro.lair = hasLair ? 4 : null; assumed = true;
+  }
+  var legendary = (legAny || intro.uses !== null) ? { uses: intro.uses, lair: intro.lair, assumed: assumed } : null;
+
+  var speed = Object.keys(c.speed || {}).filter(function (k) {
+    return k !== 'unit' && k !== 'hover' && c.speed[k] > 0;
+  }).map(function (k) { return (k === 'walk' ? '' : k + ' ') + c.speed[k] + ' ft.'; }).join(', ');
+
+  var senses = [];
+  [['darkvision', c.darkvision_range], ['blindsight', c.blindsight_range],
+   ['tremorsense', c.tremorsense_range], ['truesight', c.truesight_range]].forEach(function (s) {
+    if (s[1]) senses.push(s[0] + ' ' + s[1] + ' ft.');
+  });
+  if (c.passive_perception) senses.push('passive Perception ' + c.passive_perception);
+
+  var ri = c.resistances_and_immunities || {}, def = [];
+  if (ri.damage_vulnerabilities_display) def.push('Vulnerable: ' + ri.damage_vulnerabilities_display);
+  if (ri.damage_resistances_display) def.push('Resist: ' + ri.damage_resistances_display);
+  if (ri.damage_immunities_display) def.push('Immune: ' + ri.damage_immunities_display);
+  if (ri.condition_immunities_display) def.push('Condition immune: ' + ri.condition_immunities_display);
+
+  var doc = c.document || {};
+  var licence = doc.key === 'srd-2024' ? ' (CC BY 4.0)' : '';
+
+  var sv = c.saving_throws || c.modifiers || {}, saves = {};
+  Object.keys(ABIL_KEYS).forEach(function (k) {
+    saves[ABIL_KEYS[k]] = sv[k] !== undefined && sv[k] !== null ? sv[k] : Math.floor(((ab[k] || 10) - 10) / 2);
+  });
+
+  return {
+    key: c.key, name: c.name, saves: saves, init: c.initiative_bonus,
+    pb: c.proficiency_bonus || profBonus(c.challenge_rating),
+    skills: Object.keys(c.skill_bonuses || {}).map(function (k) {
+      var nm = k.replace(/_/g, ' ');
+      return { name: nm.charAt(0).toUpperCase() + nm.slice(1), bonus: c.skill_bonuses[k] };
+    }),
+    hp: c.hit_points || 1, maxHp: c.hit_points || 1, hitDice: c.hit_dice || '',
+    ac: c.armor_class || 10, speed: speed, abilities: abilities,
+    cr: crLabel(c.challenge_rating),
+    size: (c.size && c.size.name) || '', type: (c.type && c.type.name) || '',
+    alignment: c.alignment || '',
+    senses: senses.join(', '), defenses: def.join('; '),
+    attacks: attacks, features: features, legendary: legendary, notes: '',
+    source: (doc.name || 'Open5e') + ' via Open5e' + licence
+  };
+}
+
+</script>
+<script>
+(function () {
+'use strict';
+var TIER_DEFAULTS = [
+  { id: 'l1',  label: 'Level 1',     hp: 60,  dmg: 60,  save: -2, dc: -2, ac: -2, hit: -2 },
+  { id: 'low', label: 'Low level',   hp: 80,  dmg: 80,  save: -1, dc: -1, ac: -1, hit: -1 },
+  { id: 'std', label: 'Standard',    hp: 100, dmg: 100, save: 0,  dc: 0,  ac: 0, hit: 0 },
+  { id: 'exp', label: 'Experienced', hp: 130, dmg: 125, save: 2,  dc: 2,  ac: 2, hit: 2 }
+];
+function $(id) { return document.getElementById(id); }
+function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+function lsGet(k, def) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch (e) { return def; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+function msg(t) { $('msg').textContent = t; }
+function keysWith(prefix) {
+  var out = [];
+  try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf(prefix) === 0) out.push(k); } } catch (e) {}
+  return out;
+}
+
+var tiers = lsGet('dnd-tiers-v2', null);
+if (!tiers || tiers.length !== 4) tiers = JSON.parse(JSON.stringify(TIER_DEFAULTS));
+tiers.forEach(function (t) {
+  var d = TIER_DEFAULTS.filter(function (x) { return x.id === t.id; })[0] || {};
+  if (t.ac === undefined) t.ac = d.ac || 0;
+  if (t.hit === undefined) t.hit = d.hit || 0;
+});
+function renderTune() {
+  var box = $('tune'); box.innerHTML = '';
+  ['', 'HP %', 'Dmg %', 'Save', 'DC', 'AC', 'Hit'].forEach(function (h) { box.appendChild(el('div', 'h', h)); });
+  tiers.forEach(function (t) {
+    box.appendChild(el('div', '', t.label));
+    ['hp', 'dmg', 'save', 'dc', 'ac', 'hit'].forEach(function (f) {
+      var i = el('input'); i.type = 'number'; i.value = t[f];
+      i.oninput = function () { t[f] = +i.value || 0; lsSet('dnd-tiers-v2', tiers); msg('Tiers saved.'); };
+      box.appendChild(i);
+    });
+  });
+}
+$('btnTierReset').onclick = function () {
+  tiers = JSON.parse(JSON.stringify(TIER_DEFAULTS)); lsSet('dnd-tiers-v2', tiers); renderTune(); msg('Tiers reset.');
+};
+
+var link = '';
+$('btnLb').onclick = function () {
+  var parts = [];
+  $('lbIn').value.split(/\n+/).forEach(function (line) {
+    line = line.trim(); if (!line) return;
+    var m = /^(\d+)\s*[xX]?\s*(\S+)$/.exec(line), n = 1, u = line;
+    if (m && /[\/:]/.test(m[2])) { n = +m[1]; u = m[2]; }
+    parts.push(n + 'x' + encodeURIComponent(u));
+  });
+  if (!parts.length) { $('lbOut').value = ''; msg('Add at least one creature line.'); return; }
+  var nm = $('lbName').value.trim();
+  if (nm) parts.push('name=' + encodeURIComponent(nm));
+  link = location.href.split(/[?#]/)[0].replace(/[^\/]*$/, '') + 'index.html?' + parts.join('&');
+  $('lbOut').value = link; $('lbOut').select();
+  $('lnkOpen').href = link; $('lnkOpen').style.display = 'inline';
+  msg('Link ready. Paste it into your Google Site.');
+};
+$('btnCopy').onclick = function () {
+  $('lbOut').select();
+  try { document.execCommand('copy'); msg('Copied.'); } catch (e) { msg('Select the link and copy it manually.'); }
+};
+
+$('btnPaste').onclick = function () {
+  try {
+    var j = JSON.parse($('pasteJson').value), list = j.results || [j], n = 0;
+    list.forEach(function (x) { if (x && x.key) { lsSet('dnd-cr6:' + x.key, normalizeCreature(x)); n++; } });
+    if (!n) throw new Error('no creature found in that text');
+    $('pasteJson').value = ''; msg('Added ' + n + ' creature(s).');
+  } catch (err) { msg('Could not read that: ' + err.message); }
+};
+$('btnRefresh').onclick = function () {
+  var ks = keysWith('dnd-cr6:'); ks.forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
+  msg('Cleared ' + ks.length + ' cached creature(s); they reload on next open.');
+};
+var clearTimer = null;
+$('btnClear').onclick = function () {
+  var b = this;
+  if (!clearTimer) { b.textContent = 'Tap again to confirm'; clearTimer = setTimeout(function () { clearTimer = null; b.textContent = 'Clear all saved HP and initiative'; }, 4000); return; }
+  clearTimeout(clearTimer); clearTimer = null; b.textContent = 'Clear all saved HP and initiative';
+  var ks = keysWith('dnd-enc-st3:'); ks.forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
+  msg('Cleared saved HP and initiative for ' + ks.length + ' encounter(s).');
+};
+renderTune();
+})();
+</script>
+</body></html>
