@@ -50,6 +50,9 @@
   .an b { display: block; }
   .an .sm { display: block; font-size: 10px; }
   .atk .dm { font-weight: bold; }
+  .leg { margin: 4px 0 2px; border-top: 2px solid #8b1a1a66; }
+  .lh { font-weight: bold; color: #8b1a1a; margin: 3px 0 1px; }
+  .lh .sm { font-weight: normal; }
   .fch { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 2px; }
   .fchip { padding: 4px 8px; border: 1px solid #c9bda0; background: #f6efdc; border-radius: 10px; font-size: 12px; cursor: pointer; }
   .fchip.on { background: #8b1a1a; color: #fff; border-color: #8b1a1a; }
@@ -127,6 +130,7 @@
   <div class="sm">Open the creature's api.open5e.com address in a browser tab, copy all the text, paste it below.</div>
   <textarea id="pasteJson" rows="2"></textarea>
   <div class="row"><button id="btnPaste">Add creature data</button></div>
+  <div class="sm" style="margin-top:8px">Build 9: to-hit tiers, legendary section</div>
 </div>
 
 <div id="groups"></div>
@@ -153,7 +157,7 @@ function cleanText(s) {
 
 function actionLabel(t) {
   var map = { ACTION: 'Action', BONUS_ACTION: 'Bonus action', REACTION: 'Reaction',
-              LEGENDARY_ACTION: 'Legendary action' };
+              LEGENDARY_ACTION: 'Legendary action', LAIR_ACTION: 'Lair action' };
   return map[t] || 'Action';
 }
 
@@ -215,6 +219,31 @@ function parseAction(a) {
   return out;
 }
 
+var NUM_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
+function numWord(s) {
+  s = String(s || '').toLowerCase();
+  return /^\d+$/.test(s) ? +s : (NUM_WORDS[s] || null);
+}
+
+/** How many legendary actions a creature gets, and which entries only state that rule. */
+function findLegendaryIntro(c) {
+  var out = { uses: null, lair: null, consumed: [] };
+  function read(text) {
+    var m = /legendary actions?(?:\s+uses?)?\s*:?\s*(\d+)(?:\s*\(\s*(\d+)\s*in\s+(?:its\s+|the\s+)?lair\s*\))?/i.exec(text);
+    if (m) { out.uses = +m[1]; out.lair = m[2] ? +m[2] : null; return true; }
+    m = /can take (\w+) legendary actions?/i.exec(text);
+    if (m && numWord(m[1])) { out.uses = numWord(m[1]); return true; }
+    return false;
+  }
+  if (c.legendary_desc) read(cleanText(c.legendary_desc));
+  (c.actions || []).concat(c.traits || []).forEach(function (e) {
+    var name = String(e.name || '').trim();
+    var got = read(cleanText(name + ' ' + (e.desc || '')));
+    if (/^legendary actions?( uses?)?$/i.test(name) || (got && /legendary action/i.test(name))) out.consumed.push(e);
+  });
+  return out;
+}
+
 function profBonus(cr) {
   var n = +cr || 0;
   return n < 5 ? 2 : n < 9 ? 3 : n < 13 ? 4 : n < 17 ? 5 : n < 21 ? 6 : n < 25 ? 7 : n < 29 ? 8 : 9;
@@ -229,15 +258,20 @@ function normalizeCreature(c) {
   var ab = c.ability_scores || {}, abilities = {};
   Object.keys(ABIL_KEYS).forEach(function (k) { abilities[ABIL_KEYS[k]] = ab[k] || 10; });
 
-  var features = (c.traits || []).map(function (t) {
+  var intro = findLegendaryIntro(c);
+  var features = (c.traits || []).filter(function (t) { return intro.consumed.indexOf(t) < 0; }).map(function (t) {
     return { name: t.name, kind: 'Trait', desc: cleanText(t.desc) };
   });
   var attacks = [];
   (c.actions || []).forEach(function (a) {
+    if (intro.consumed.indexOf(a) >= 0) return;
+    var leg = a.action_type === 'LEGENDARY_ACTION';
     var p = parseAction(a);
-    attacks = attacks.concat(p.attacks);
-    if (p.feature) features.push(p.feature);
+    p.attacks.forEach(function (x) { if (leg) x.legendary = true; attacks.push(x); });
+    if (p.feature) { if (leg) p.feature.legendary = true; features.push(p.feature); }
   });
+  var legAny = attacks.concat(features).some(function (x) { return x.legendary; });
+  var legendary = (legAny || intro.uses !== null) ? { uses: intro.uses, lair: intro.lair } : null;
 
   var speed = Object.keys(c.speed || {}).filter(function (k) {
     return k !== 'unit' && k !== 'hover' && c.speed[k] > 0;
@@ -277,7 +311,7 @@ function normalizeCreature(c) {
     size: (c.size && c.size.name) || '', type: (c.type && c.type.name) || '',
     alignment: c.alignment || '',
     senses: senses.join(', '), defenses: def.join('; '),
-    attacks: attacks, features: features, notes: '',
+    attacks: attacks, features: features, legendary: legendary, notes: '',
     source: (doc.name || 'Open5e') + ' via Open5e' + licence
   };
 }
@@ -345,9 +379,13 @@ function saveSt() { if (SKEY) lsSet(SKEY, st); }
 function saveTiers() { lsSet('dnd-tiers-v2', tiers); }
 function maxHp(g) { return Math.max(1, Math.round(g.c.maxHp * T().hp / 100)); }
 function bumpDC(text) {
-  var b = T().dc;
-  if (!b) return esc(text);
-  return esc(text).replace(/\bDC (\d+)/g, function (m, n) { return '<span class="dcb">DC ' + (+n + b) + '</span>'; });
+  var tt = T(), s = esc(text);
+  if (tt.dc) s = s.replace(/\bDC (\d+)/g, function (m, n) { return '<span class="dcb">DC ' + (+n + tt.dc) + '</span>'; });
+  if (tt.hit) {
+    s = s.replace(/(Attack Roll:\s*)([+-])(\d+)/gi, function (m, pre, sg, n) { return pre + '<span class="dcb">' + sgn((sg === '-' ? -1 : 1) * +n + tt.hit) + '</span>'; });
+    s = s.replace(/([+-])(\d+)(?= to hit)/g, function (m, sg, n) { return '<span class="dcb">' + sgn((sg === '-' ? -1 : 1) * +n + tt.hit) + '</span>'; });
+  }
+  return s;
 }
 
 /* ---------- dice ---------- */
@@ -400,12 +438,12 @@ function say(who, what, big, small) {
 
 /* ---------- loading ---------- */
 function getCreature(key) {
-  var cached = lsGet('dnd-cr4:' + key, null);
+  var cached = lsGet('dnd-cr5:' + key, null);
   if (cached) return Promise.resolve(cached);
   return fetch(OPEN5E + encodeURIComponent(key) + '/').then(function (r) {
     if (!r.ok) throw new Error('Open5e returned ' + r.status + ' for ' + key);
     return r.json();
-  }).then(function (j) { var c = normalizeCreature(j); lsSet('dnd-cr4:' + key, c); return c; });
+  }).then(function (j) { var c = normalizeCreature(j); lsSet('dnd-cr5:' + key, c); return c; });
 }
 
 function start(str, persistManual) {
@@ -541,13 +579,14 @@ function buildGroup(g) {
   var more = [c.senses, c.defenses].filter(Boolean);
   if (more.length) box.appendChild(el('div', 'sm', more.join(' · ')));
 
-  var rest = [];
+  var rest = [], legFeat = [];
   c.features.forEach(function (f) {
     if (/^multiattack/i.test(f.name)) { var m = el('div', 'ma'); m.innerHTML = '<b>' + esc(f.name) + '</b> ' + esc(f.desc); box.appendChild(m); }
+    else if (f.legendary) legFeat.push(f);
     else rest.push(f);
   });
 
-  c.attacks.forEach(function (a, ai) {
+  function attackRow(a, ai, parent) {
     var row = el('div', 'atk');
     var an = el('div', 'an');
     an.appendChild(el('b', '', a.name + '  ' + (a.kind === 'save' ? 'DC ' + (a.dc + t.dc) + ' ' + a.ability : sgn(a.bonus + t.hit))));
@@ -555,7 +594,7 @@ function buildGroup(g) {
     partTypes(a).forEach(function (ty) {
       var sw = el('i', 'tg'); sw.style.background = tcol(ty); lg.appendChild(sw); lg.appendChild(document.createTextNode(ty + ' '));
     });
-    if (a.note) lg.appendChild(document.createTextNode('\u00b7 ' + a.note));
+    if (a.note) lg.appendChild(document.createTextNode('· ' + a.note));
     an.appendChild(lg);
     row.appendChild(an);
     var pq = el('div', 'pq');
@@ -570,15 +609,15 @@ function buildGroup(g) {
     };
     row.appendChild(bp);
     row.appendChild(pq); paintPre(g, ai, pq);
-    box.appendChild(row);
-  });
+    parent.appendChild(row);
+  }
 
-  if (rest.length) {
-    var TAG = { 'Bonus action': 'B', 'Reaction': 'R', 'Legendary action': 'L', 'Action': 'A' };
+  function chipRow(list, parent, tags) {
+    var TAG = { 'Bonus action': 'B', 'Reaction': 'R', 'Lair action': 'LA', 'Action': 'A' };
     var fch = el('div', 'fch'), fd = el('div', 'fdesc'), openF = null;
-    rest.forEach(function (f) {
+    list.forEach(function (f) {
       var chip = el('span', 'fchip');
-      chip.innerHTML = esc(f.name) + (TAG[f.kind] ? '<i>' + TAG[f.kind] + '</i>' : '');
+      chip.innerHTML = esc(f.name) + (tags && TAG[f.kind] ? '<i>' + TAG[f.kind] + '</i>' : '');
       chip.onclick = function () {
         if (openF === chip) { fd.classList.remove('open'); chip.classList.remove('on'); openF = null; return; }
         if (openF) openF.classList.remove('on');
@@ -588,8 +627,25 @@ function buildGroup(g) {
       };
       fch.appendChild(chip);
     });
-    box.appendChild(fch); box.appendChild(fd);
+    parent.appendChild(fch); parent.appendChild(fd);
   }
+
+  c.attacks.forEach(function (a, ai) { if (!a.legendary) attackRow(a, ai, box); });
+
+  var legAtk = [];
+  c.attacks.forEach(function (a, ai) { if (a.legendary) legAtk.push([a, ai]); });
+  if (c.legendary && (legAtk.length || legFeat.length)) {
+    var leg = el('div', 'leg'), lh = el('div', 'lh');
+    var lu = c.legendary.uses;
+    lh.textContent = 'Legendary actions - ' + (lu !== null && lu !== undefined ? lu + (c.legendary.lair ? ' (' + c.legendary.lair + ' in lair)' : '') : '3');
+    if (lu === null || lu === undefined) lh.appendChild(el('span', 'sm', ' (assumed, not in data)'));
+    leg.appendChild(lh);
+    legAtk.forEach(function (x) { attackRow(x[0], x[1], leg); });
+    if (legFeat.length) chipRow(legFeat, leg, false);
+    box.appendChild(leg);
+  }
+
+  if (rest.length) chipRow(rest, box, true);
 
   g.insts = [];
   for (var i = 0; i < g.n; i++) (function (i) {
@@ -654,13 +710,13 @@ $('btnResetHp').onclick = function () {
   groups.forEach(function (g) { g.insts.forEach(function (x, i) { paintInst(g, i); }); });
 };
 $('btnRefresh').onclick = function () {
-  groups.forEach(function (g) { lsDel('dnd-cr4:' + g.key); });
+  groups.forEach(function (g) { lsDel('dnd-cr5:' + g.key); });
   start($('encIn').value.trim() || '', false);
 };
 $('btnPaste').onclick = function () {
   try {
     var j = JSON.parse($('pasteJson').value), list = j.results || [j], n = 0;
-    list.forEach(function (x) { if (x && x.key) { lsSet('dnd-cr4:' + x.key, normalizeCreature(x)); n++; } });
+    list.forEach(function (x) { if (x && x.key) { lsSet('dnd-cr5:' + x.key, normalizeCreature(x)); n++; } });
     if (!n) throw new Error('no creature found in that text');
     $('pasteJson').value = ''; $('cfgMsg').textContent = 'Added ' + n + '. Reloading encounter...';
     start($('encIn').value.trim(), false);
