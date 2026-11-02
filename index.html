@@ -103,7 +103,7 @@
 
 <div id="groups"></div>
 
-<div id="foot"><a href="#" id="lnkReset">Reset HP and init</a> &middot; <a href="setup.html" id="lnkSetup">Setup</a> &middot; Build 17</div>
+<div id="foot"><a href="#" id="lnkReset">Reset HP and init</a> &middot; <a href="setup.html" id="lnkSetup">Setup</a> &middot; Build 19</div>
 
 <div id="rollbar">
   <div id="last">Tap a damage button to roll. Tap here for the log.</div>
@@ -359,6 +359,9 @@ function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
 /* ---------- encounter string ---------- */
 function keyFromRef(ref) {
   ref = ref.trim();
+  /* Homebrew: "homebrew/name" (same folder as this page) or any link ending .json */
+  if (/^homebrew\/[\w .\-]+$/i.test(ref)) return 'hb:' + ref.replace(/\.json$/i, '') + '.json';
+  if (/\.json(?:[?#]|$)/i.test(ref)) return 'hb:' + ref;
   var m = /\/(?:creatures|monsters)\/([^\/?#]+)/.exec(ref);
   if (m) return m[1];
   if (/^[\w-]+$/.test(ref)) return ref;
@@ -461,12 +464,25 @@ function say(who, what, big, small) {
 
 /* ---------- loading ---------- */
 function getCreature(key) {
-  var cached = lsGet('dnd-cr6:' + key, null);
+  var cached = lsGet('dnd-cr18:' + key, null);
+  if (key.indexOf('hb:') === 0) {
+    /* Homebrew files are re-read every time so edits show up; the saved copy is only a fallback. */
+    var path = key.slice(3);
+    return fetch(path, { cache: 'no-cache' }).then(function (r) {
+      if (!r.ok) throw new Error('Could not load ' + path + ' (' + r.status + ')');
+      return r.json();
+    }).then(function (j) {
+      if (Array.isArray(j)) j = j[0]; else if (j && j.results) j = j.results[0];
+      if (!j || !j.name) throw new Error(path + ' has no creature in it');
+      if (!j.key) j.key = key;
+      var c = normalizeCreature(j); c.key = key; lsSet('dnd-cr18:' + key, c); return c;
+    }).catch(function (e) { if (cached) return cached; throw e; });
+  }
   if (cached) return Promise.resolve(cached);
   return fetch(OPEN5E + encodeURIComponent(key) + '/').then(function (r) {
     if (!r.ok) throw new Error('Open5e returned ' + r.status + ' for ' + key);
     return r.json();
-  }).then(function (j) { var c = normalizeCreature(j); lsSet('dnd-cr6:' + key, c); return c; });
+  }).then(function (j) { var c = normalizeCreature(j); lsSet('dnd-cr18:' + key, c); return c; });
 }
 
 function start(str) {
