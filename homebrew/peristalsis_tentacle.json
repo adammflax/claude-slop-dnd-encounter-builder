@@ -48,7 +48,7 @@
         "as_string": "Can't speak",
         "data": []
     },
-    "armor_class": 16,
+    "armor_class": 14,
     "armor_detail": "natural armor",
     "hit_points": 76,
     "hit_dice": "9d10 + 27",
@@ -146,7 +146,7 @@
         },
         {
             "name": "Paralyzing Tentacles",
-            "desc": "Constitution Saving Throw: DC 13, one creature Grappled by the chuul. Failure: The target has the Poisoned condition and repeats the save at the end of each of its turns, ending the effect on itself on a success. After 1 minute, it succeeds automatically. While Poisoned, the target has the Paralyzed condition.",
+            "desc": "Constitution Saving Throw: DC 14, one creature Grappled by the chuul. Failure: The target has the Poisoned condition and repeats the save at the end of each of its turns, ending the effect on itself on a success. After 1 minute, it succeeds automatically. While Poisoned, the target has the Paralyzed condition.",
             "crossreferences": {
                 "to": []
             },
@@ -193,16 +193,7 @@
             "usage_limits": null
         }
     ],
-    "traits": [
-        {
-            "name": "Amphibious",
-            "desc": "The chuul can breathe air and water."
-        },
-        {
-            "name": "Sense Magic",
-            "desc": "The chuul senses magic within 120 feet of itself. This trait otherwise works like the Detect Magic spell but isn't itself magical."
-        }
-    ],
+    "traits": [],
     "creaturesets": [],
     "environments": [],
     "illustration": null,
