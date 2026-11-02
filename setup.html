@@ -21,7 +21,7 @@
 <div class="sm">Settings here are saved in this browser and used by the encounter page. Keep both pages in the same folder on the same site. <a href="index.html">Back to encounter</a></div>
 
 <h2>1. Make an encounter link</h2>
-<div class="sm">One creature per line, e.g. <code>3 https://open5e.com/monsters/srd-2024_mimic</code></div>
+<div class="sm">One creature per line, e.g. <code>3 https://open5e.com/monsters/srd-2024_mimic</code>. Homebrew files in the homebrew folder: <code>2 homebrew/ashen-hound</code>.</div>
 <textarea id="lbIn" rows="4" placeholder="3 https://open5e.com/monsters/srd-2024_mimic&#10;1 https://open5e.com/monsters/srd-2024_adult-black-dragon"></textarea>
 <input id="lbName" placeholder="Encounter name (optional, also keeps its HP separate)" style="margin-top:4px">
 <button class="solid" id="btnLb">Make link</button><button id="btnCopy">Copy</button> <a id="lnkOpen" href="#" target="_blank" style="display:none">Open</a>
@@ -42,7 +42,7 @@
 <button id="btnClear">Clear all saved HP and initiative</button>
 
 <div id="msg"></div>
-<div class="sm" style="margin-top:12px">Build 14</div>
+<div class="sm" style="margin-top:12px">Build 19</div>
 
 <script>
 /**
@@ -57,7 +57,7 @@ var ABIL_KEYS = { strength: 'str', dexterity: 'dex', constitution: 'con',
 var ABIL_NAMES = '(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)';
 
 function cleanText(s) {
-  return String(s || '').replace(/\*\*/g, '').replace(/_([^_]+)_/g, '$1')
+  return String(s || '').replace(/([A-Za-z]+)\s*\[[^\]]*\]\|[^|\s]*\|\1/g, '$1').replace(/\s*\[[^\]]*\]\|[^|\s]*\|/g, ' ').replace(/\*\*/g, '').replace(/_([^_]+)_/g, '$1')
     .replace(/:\s*\n+\s*[-*]\s+/g, ': ').replace(/\s*\n\s*[-*]\s+/g, ' | ')
     .replace(/\s+/g, ' ').trim();
 }
@@ -119,6 +119,10 @@ function parseAction(a) {
     }
     var tm = /DC\s*:?\s*\d+,\s*([^.]*?)\.\s*(?:Failure|Success)/i.exec(desc);
     if (tm && !/-foot|cone|line|emanation|sphere|cylinder|cube/i.test(tm[1])) bits.push('Target: ' + tm[1].trim());
+    var fm = /damage,?\s+and\s+([^.]*)\./i.exec(desc);
+    if (save && fm) bits.push(fm[1].trim().replace(/^./, function (ch) { return ch.toUpperCase(); }));
+    var om = /Failure or Success:\s*([^.]*)\./i.exec(desc);
+    if (om) bits.push(om[1].trim().replace(/^./, function (ch) { return ch.toUpperCase(); }));
     desc.split(/(?<=\.)\s+/).forEach(function (s) {
       if (/^If /i.test(s) && !/\d\s*\(\d*d\d/i.test(s)) bits.push(s.replace(/\.$/, ''));
     });
@@ -135,14 +139,14 @@ function parseAction(a) {
     });
     if (alt.length) {
       var altAll = alt.slice(0, 1).concat(base.slice(1));
-      var cm = /—\s*or\s*\d+\s*\([^)]+\)\s*[A-Za-z]+\s+damage\s+(if [^—.]+)/i.exec(desc);
+      var cm = /(?:—|–|,|\s)or\s*\d+\s*\([^)]+\)\s*[A-Za-z]+\s+damage,?\s+(if [^—–,.]+)/i.exec(desc);
       var condTxt = cm ? cm[1].trim() : '';
       var short = condTxt.replace(/^if\s+(the\s+)?(target|creature)\s+(is|has)\s+/i, 'if ').replace(/\s+by the .*$/i, '');
       var adv = /with Advantage if ([^)]+)\)/i.exec(desc);
       out.attacks.push({
         name: a.name + (short ? ' (' + short + ')' : ' (alt)'), kind: 'attack', bonus: bonus,
         dmg: altAll.map(dice).join('+'), type: types(altAll), parts: altAll.map(part),
-        note: condTxt ? 'use ' + condTxt : 'alternate damage, see description'
+        note: condTxt ? 'use ' + condTxt : desc.replace(/^[^.]*?(?:reach|range)[^.]*?ft\.?\s*/i, '').slice(0, 220)
       });
     }
   } else if (save && (base.length || cond.length)) {
@@ -333,13 +337,13 @@ $('btnCopy').onclick = function () {
 $('btnPaste').onclick = function () {
   try {
     var j = JSON.parse($('pasteJson').value), list = j.results || [j], n = 0;
-    list.forEach(function (x) { if (x && x.key) { lsSet('dnd-cr6:' + x.key, normalizeCreature(x)); n++; } });
+    list.forEach(function (x) { if (x && x.key) { lsSet('dnd-cr18:' + x.key, normalizeCreature(x)); n++; } });
     if (!n) throw new Error('no creature found in that text');
     $('pasteJson').value = ''; msg('Added ' + n + ' creature(s).');
   } catch (err) { msg('Could not read that: ' + err.message); }
 };
 $('btnRefresh').onclick = function () {
-  var ks = keysWith('dnd-cr6:'); ks.forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
+  var ks = keysWith('dnd-cr'); ks.forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
   msg('Cleared ' + ks.length + ' cached creature(s); they reload on next open.');
 };
 var clearTimer = null;
